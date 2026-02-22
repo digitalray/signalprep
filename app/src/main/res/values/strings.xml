@@ -1,0 +1,27 @@
+<resources>
+    <string name="app_name">Signal Prep</string>
+    <string name="app_settings">App Settings</string>
+    <string name="carrier_frequency">Carrier Frequency (Hz)</string>
+    <string name="wave_type">Wave Type</string>
+    <string name="offset">Offset</string>
+    <string name="duty_cycle">Duty Cycle</string>
+    <string name="amplitude">Amplitude</string>
+    <string name="fg_ip">FG IP</string>
+    <string name="fg_port">FG Port</string>
+    <string name="total_duration_minutes">Total Duration (minutes)</string>
+    <string name="apply_duration">Apply Duration</string>
+    <string name="actual">Actual</string>
+    <string name="calculated">Calculated</string>
+    <string name="duration">Duration (seconds)</string>
+    <string name="checkbox">Enabled</string>
+    <string name="delete">Delete</string>
+    <string name="add_row">Add Row</string>
+    <string name="import_csv">Import CSV</string>
+    <string name="run">Run</string>
+    <string name="actual_hint">Actual frequency</string>
+    <string name="duration_hint">Duration</string>
+
+    <string-array name="wave_types">
+        <item>SINE</item>
+    </string-array>
+</resources>
