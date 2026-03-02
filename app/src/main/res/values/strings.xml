@@ -1,17 +1,25 @@
 <resources>
     <string name="app_name">Signal Prep</string>
     <string name="app_settings">App Settings</string>
-    <string name="carrier_frequency">Carrier Frequency (Hz)</string>
-    <string name="wave_type">Wave Type</string>
-    <string name="offset">Offset</string>
-    <string name="duty_cycle">Duty Cycle</string>
-    <string name="amplitude">Amplitude</string>
+    <string name="carrier_frequency">CH1 Carrier Frequency (Hz)</string>
+    <string name="used_freqeuncy">CH1 Used Frequency</string>
+    <string name="wave_type">CH1 Wave Type</string>
+    <string name="offset">CH1 Offset</string>
+    <string name="duty_cycle">CH1 Duty Cycle</string>
+    <string name="amplitude">CH1 Aplitude</string>
+    <string name="ch2_carrier_frequency">CH2 Carrier Frequency (Hz)</string>
+    <string name="ch2_used_frequency">CH2 Used Frequency</string>
+    <string name="ch2_wave_type">CH2 Wave Type</string>
+    <string name="ch2_offset">CH2 Offset</string>
+    <string name="ch2_duty_cycle">CH2 Duty Cycle</string>
+    <string name="ch2_amplitude">CH2 Aplitude</string>
     <string name="fg_ip">FG IP</string>
     <string name="fg_port">FG Port</string>
     <string name="total_duration_minutes">Total Duration (minutes)</string>
     <string name="apply_duration">Apply Duration</string>
     <string name="actual">Actual</string>
-    <string name="calculated">Calculated</string>
+    <string name="calculated">CH1 Calculated</string>
+    <string name="ch2_calculated">CH2 Calculated</string>
     <string name="duration">Duration (seconds)</string>
     <string name="checkbox">Enabled</string>
     <string name="delete">Delete</string>
@@ -23,5 +31,10 @@
 
     <string-array name="wave_types">
         <item>SINE</item>
+    </string-array>
+
+    <string-array name="used_frequency_options">
+        <item>Actual</item>
+        <item>Calculated</item>
     </string-array>
 </resources>

@@ -25,15 +25,28 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 class MainActivity : AppCompatActivity() {
-    private data class FrequencyStep(val calculatedFreq: Double, val durationSeconds: Long)
+    private data class FrequencyStep(
+        val ch1SelectedFreq: Double,
+        val ch2SelectedFreq: Double,
+        val durationSeconds: Long,
+        val ch1FrequencyMode: String,
+        val ch2FrequencyMode: String
+    )
     @Volatile
     private var stopRequested: Boolean = false
 
-    private lateinit var carrierFrequencyInput: EditText
-    private lateinit var waveTypeSpinner: Spinner
-    private lateinit var offsetInput: EditText
-    private lateinit var dutyCycleInput: EditText
-    private lateinit var amplitudeInput: EditText
+    private lateinit var ch1CarrierFrequencyInput: EditText
+    private lateinit var ch1UsedFrequencySpinner: Spinner
+    private lateinit var ch1WaveTypeSpinner: Spinner
+    private lateinit var ch1OffsetInput: EditText
+    private lateinit var ch1DutyCycleInput: EditText
+    private lateinit var ch1AmplitudeInput: EditText
+    private lateinit var ch2CarrierFrequencyInput: EditText
+    private lateinit var ch2UsedFrequencySpinner: Spinner
+    private lateinit var ch2WaveTypeSpinner: Spinner
+    private lateinit var ch2OffsetInput: EditText
+    private lateinit var ch2DutyCycleInput: EditText
+    private lateinit var ch2AmplitudeInput: EditText
     private lateinit var functionGeneratorIp: EditText
     private lateinit var functionGeneratorPort: EditText
     private lateinit var totalDurationMinutesInput: EditText
@@ -48,23 +61,43 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        carrierFrequencyInput = findViewById(R.id.carrierFrequencyInput)
-        waveTypeSpinner = findViewById(R.id.waveTypeSpinner)
-        offsetInput = findViewById(R.id.offsetInput)
-        dutyCycleInput = findViewById(R.id.dutyCycleInput)
-        amplitudeInput = findViewById(R.id.amplitudeInput)
+        ch1CarrierFrequencyInput = findViewById(R.id.carrierFrequencyInput)
+        ch1UsedFrequencySpinner = findViewById(R.id.usedFrequencySpinner)
+        ch1WaveTypeSpinner = findViewById(R.id.waveTypeSpinner)
+        ch1OffsetInput = findViewById(R.id.offsetInput)
+        ch1DutyCycleInput = findViewById(R.id.dutyCycleInput)
+        ch1AmplitudeInput = findViewById(R.id.amplitudeInput)
+        ch2CarrierFrequencyInput = findViewById(R.id.ch2CarrierFrequencyInput)
+        ch2UsedFrequencySpinner = findViewById(R.id.ch2UsedFrequencySpinner)
+        ch2WaveTypeSpinner = findViewById(R.id.ch2WaveTypeSpinner)
+        ch2OffsetInput = findViewById(R.id.ch2OffsetInput)
+        ch2DutyCycleInput = findViewById(R.id.ch2DutyCycleInput)
+        ch2AmplitudeInput = findViewById(R.id.ch2AmplitudeInput)
         functionGeneratorIp = findViewById(R.id.functionGeneratorIpInput)
         functionGeneratorPort = findViewById(R.id.functionGeneratorPortInput)
         totalDurationMinutesInput = findViewById(R.id.totalDurationMinutesInput)
         rowsContainer = findViewById(R.id.rowsContainer)
 
-        carrierFrequencyInput.setText("3100000")
-        offsetInput.setText("0")
-        dutyCycleInput.setText("50")
-        amplitudeInput.setText("2")
+        ch1CarrierFrequencyInput.setText("3100000")
+        ch1OffsetInput.setText("0")
+        ch1DutyCycleInput.setText("50")
+        ch1AmplitudeInput.setText("2")
+        ch2CarrierFrequencyInput.setText("3100000")
+        ch2OffsetInput.setText("0")
+        ch2DutyCycleInput.setText("50")
+        ch2AmplitudeInput.setText("2")
         functionGeneratorIp.setText("192.168.1.22")
         functionGeneratorPort.setText("5025")
-        waveTypeSpinner.adapter = ArrayAdapter(
+        ch1UsedFrequencySpinner.setSelection(1)
+        ch2UsedFrequencySpinner.setSelection(0)
+        ch1WaveTypeSpinner.adapter = ArrayAdapter(
+            this,
+            android.R.layout.simple_spinner_item,
+            Sdg1000xTelnetClient.SUPPORTED_WAVE_SHAPES
+        ).apply {
+            setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        }
+        ch2WaveTypeSpinner.adapter = ArrayAdapter(
             this,
             android.R.layout.simple_spinner_item,
             Sdg1000xTelnetClient.SUPPORTED_WAVE_SHAPES
@@ -85,7 +118,14 @@ class MainActivity : AppCompatActivity() {
             runEnabledFrequencies()
         }
 
-        carrierFrequencyInput.addTextChangedListener(object : TextWatcher {
+        ch1CarrierFrequencyInput.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                refreshAllRows()
+            }
+        })
+        ch2CarrierFrequencyInput.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             override fun afterTextChanged(s: Editable?) {
@@ -99,6 +139,10 @@ class MainActivity : AppCompatActivity() {
     private fun runEnabledFrequencies() {
         refreshAllRows()
         stopRequested = false
+        val ch1SelectedMode = ch1UsedFrequencySpinner.selectedItem?.toString() ?: "Actual"
+        val ch2SelectedMode = ch2UsedFrequencySpinner.selectedItem?.toString() ?: "Actual"
+        val ch1UseActual = ch1SelectedMode.equals("Actual", ignoreCase = true)
+        val ch2UseActual = ch2SelectedMode.equals("Actual", ignoreCase = true)
 
         val steps = mutableListOf<FrequencyStep>()
         for (i in 0 until rowsContainer.childCount) {
@@ -106,14 +150,34 @@ class MainActivity : AppCompatActivity() {
             val enabled = row.findViewById<CheckBox>(R.id.enabledCheck).isChecked
             if (!enabled) continue
 
-            val calculatedText = row.findViewById<TextView>(R.id.calculatedText).text.toString().trim()
+            val actualText = row.findViewById<EditText>(R.id.actualInput).text.toString().trim()
+            val ch1CalculatedText = row.findViewById<TextView>(R.id.ch1CalculatedText).text.toString().trim()
+            val ch2CalculatedText = row.findViewById<TextView>(R.id.ch2CalculatedText).text.toString().trim()
             val durationText = row.findViewById<EditText>(R.id.durationInput).text.toString().trim()
 
-            val calculatedFreq = calculatedText.toDoubleOrNull() ?: continue
+            val ch1SelectedFreq = if (ch1UseActual) {
+                actualText.toDoubleOrNull()
+            } else {
+                ch1CalculatedText.toDoubleOrNull()
+            } ?: continue
+            val ch2SelectedFreq = if (ch2UseActual) {
+                actualText.toDoubleOrNull()
+            } else {
+                ch2CalculatedText.toDoubleOrNull()
+            } ?: continue
+
             val durationSeconds = parseDurationSeconds(durationText) ?: continue
             if (durationSeconds <= 0) continue
 
-            steps.add(FrequencyStep(calculatedFreq = calculatedFreq, durationSeconds = durationSeconds))
+            steps.add(
+                FrequencyStep(
+                    ch1SelectedFreq = ch1SelectedFreq,
+                    ch2SelectedFreq = ch2SelectedFreq,
+                    durationSeconds = durationSeconds,
+                    ch1FrequencyMode = ch1SelectedMode,
+                    ch2FrequencyMode = ch2SelectedMode
+                )
+            )
         }
 
         if (steps.isEmpty()) {
@@ -131,10 +195,14 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, "FG Port must be a number between 1 and 65535.", Toast.LENGTH_SHORT).show()
             return
         }
-        val waveShape = waveTypeSpinner.selectedItem?.toString() ?: "SINE"
-        val amplitude = amplitudeInput.text.toString().toDoubleOrNull() ?: 2.0
-        val offset = offsetInput.text.toString().toDoubleOrNull() ?: 0.0
-        val dutyCycle = dutyCycleInput.text.toString().toDoubleOrNull() ?: 50.0
+        val ch1WaveShape = ch1WaveTypeSpinner.selectedItem?.toString() ?: "SINE"
+        val ch1Amplitude = ch1AmplitudeInput.text.toString().toDoubleOrNull() ?: 2.0
+        val ch1Offset = ch1OffsetInput.text.toString().toDoubleOrNull() ?: 0.0
+        val ch1DutyCycle = ch1DutyCycleInput.text.toString().toDoubleOrNull() ?: 50.0
+        val ch2WaveShape = ch2WaveTypeSpinner.selectedItem?.toString() ?: "SINE"
+        val ch2Amplitude = ch2AmplitudeInput.text.toString().toDoubleOrNull() ?: 2.0
+        val ch2Offset = ch2OffsetInput.text.toString().toDoubleOrNull() ?: 0.0
+        val ch2DutyCycle = ch2DutyCycleInput.text.toString().toDoubleOrNull() ?: 50.0
 
         Thread {
             try {
@@ -146,20 +214,34 @@ class MainActivity : AppCompatActivity() {
                 ).use { client ->
                     client.connect()
                     client.setOutput(channel = 1, enabled = true)
-                    client.setWaveShape(channel = 1, waveShape = waveShape)
-                    client.setAmplitude(channel = 1, amplitudeVpp = amplitude)
-                    client.setOffset(channel = 1, offsetV = offset)
-                    client.setDutyCycle(channel = 1, dutyPercent = dutyCycle)
+                    client.setOutput(channel = 2, enabled = true)
+                    client.setWaveShape(channel = 1, waveShape = ch1WaveShape)
+                    client.setAmplitude(channel = 1, amplitudeVpp = ch1Amplitude)
+                    client.setOffset(channel = 1, offsetV = ch1Offset)
+                    client.setDutyCycle(channel = 1, dutyPercent = ch1DutyCycle)
+                    client.setWaveShape(channel = 2, waveShape = ch2WaveShape)
+                    client.setAmplitude(channel = 2, amplitudeVpp = ch2Amplitude)
+                    client.setOffset(channel = 2, offsetV = ch2Offset)
+                    client.setDutyCycle(channel = 2, dutyPercent = ch2DutyCycle)
                     client.setOutput(channel = 1, enabled = true)
+                    client.setOutput(channel = 2, enabled = true)
 
                     for (step in steps) {
                         if (stopRequested) break
-                        client.setFrequency(channel = 1, frequencyHz = step.calculatedFreq)
-                        val shouldContinue = runCountdownPopup(step.calculatedFreq, step.durationSeconds)
+                        client.setFrequency(channel = 1, frequencyHz = step.ch1SelectedFreq)
+                        client.setFrequency(channel = 2, frequencyHz = step.ch2SelectedFreq)
+                        val shouldContinue = runCountdownPopup(
+                            step.ch1SelectedFreq,
+                            step.ch2SelectedFreq,
+                            step.durationSeconds,
+                            step.ch1FrequencyMode,
+                            step.ch2FrequencyMode
+                        )
                         if (!shouldContinue) break
                     }
 
                     client.setOutput(channel = 1, enabled = false)
+                    client.setOutput(channel = 2, enabled = false)
                 }
                 runOnUiThread {
                     if (stopRequested) {
@@ -178,11 +260,20 @@ class MainActivity : AppCompatActivity() {
         }.start()
     }
 
-    private fun runCountdownPopup(frequencyHz: Double, durationSeconds: Long): Boolean {
+    private fun runCountdownPopup(
+        ch1FrequencyHz: Double,
+        ch2FrequencyHz: Double,
+        durationSeconds: Long,
+        ch1FrequencyMode: String,
+        ch2FrequencyMode: String
+    ): Boolean {
         var countdownDialog: AlertDialog? = null
         runOnUiThread {
             countdownDialog = AlertDialog.Builder(this)
-                .setTitle("Running ${String.format("%.2f", frequencyHz)} Hz")
+                .setTitle(
+                    "CH1 ${String.format("%.2f", ch1FrequencyHz)} Hz ($ch1FrequencyMode) | " +
+                        "CH2 ${String.format("%.2f", ch2FrequencyHz)} Hz ($ch2FrequencyMode)"
+                )
                 .setMessage("Remaining: $durationSeconds s")
                 .setNegativeButton("Stop") { _, _ ->
                     stopRequested = true
@@ -221,7 +312,8 @@ class MainActivity : AppCompatActivity() {
         val rowView = LayoutInflater.from(this).inflate(R.layout.item_frequency_row, rowsContainer, false)
 
         val actualInput = rowView.findViewById<EditText>(R.id.actualInput)
-        val calculatedText = rowView.findViewById<TextView>(R.id.calculatedText)
+        val ch1CalculatedText = rowView.findViewById<TextView>(R.id.ch1CalculatedText)
+        val ch2CalculatedText = rowView.findViewById<TextView>(R.id.ch2CalculatedText)
         val durationInput = rowView.findViewById<EditText>(R.id.durationInput)
         val enabledCheck = rowView.findViewById<CheckBox>(R.id.enabledCheck)
         val deleteRowButton = rowView.findViewById<Button>(R.id.deleteRowButton)
@@ -230,14 +322,16 @@ class MainActivity : AppCompatActivity() {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             override fun afterTextChanged(s: Editable?) {
-                calculatedText.text = calculateFrequency(actualInput.text.toString())
+                ch1CalculatedText.text = calculateFrequency(actualInput.text.toString(), ch1CarrierFrequencyInput)
+                ch2CalculatedText.text = calculateFrequency(actualInput.text.toString(), ch2CarrierFrequencyInput)
             }
         })
 
         actualInput.setText(actualValue)
         durationInput.setText(durationValue)
         enabledCheck.isChecked = enabledValue
-        calculatedText.text = calculateFrequency(actualValue)
+        ch1CalculatedText.text = calculateFrequency(actualValue, ch1CarrierFrequencyInput)
+        ch2CalculatedText.text = calculateFrequency(actualValue, ch2CarrierFrequencyInput)
         deleteRowButton.setOnClickListener {
             rowsContainer.removeView(rowView)
         }
@@ -322,14 +416,16 @@ class MainActivity : AppCompatActivity() {
         for (i in 0 until rowsContainer.childCount) {
             val row = rowsContainer.getChildAt(i)
             val actualInput = row.findViewById<EditText>(R.id.actualInput)
-            val calculatedText = row.findViewById<TextView>(R.id.calculatedText)
-            calculatedText.text = calculateFrequency(actualInput.text.toString())
+            val ch1CalculatedText = row.findViewById<TextView>(R.id.ch1CalculatedText)
+            val ch2CalculatedText = row.findViewById<TextView>(R.id.ch2CalculatedText)
+            ch1CalculatedText.text = calculateFrequency(actualInput.text.toString(), ch1CarrierFrequencyInput)
+            ch2CalculatedText.text = calculateFrequency(actualInput.text.toString(), ch2CarrierFrequencyInput)
         }
     }
 
-    private fun calculateFrequency(actualText: String): String {
+    private fun calculateFrequency(actualText: String, carrierInput: EditText): String {
         val actualFreq = actualText.toDoubleOrNull() ?: return ""
-        val carrierFreq = carrierFrequencyInput.text.toString().toDoubleOrNull() ?: 3_100_000.0
+        val carrierFreq = carrierInput.text.toString().toDoubleOrNull() ?: 3_100_000.0
         if (actualFreq <= 0.0 || carrierFreq <= 0.0) return ""
 
         // 1) freqMultiplier ≈ (carrierFreq / actualFreq), rounded
