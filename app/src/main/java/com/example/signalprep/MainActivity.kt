@@ -50,6 +50,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var functionGeneratorIp: EditText
     private lateinit var functionGeneratorPort: EditText
     private lateinit var totalDurationMinutesInput: EditText
+    private lateinit var selectAllCheckbox: CheckBox
     private lateinit var rowsContainer: LinearLayout
     private val importCsvLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
@@ -76,6 +77,7 @@ class MainActivity : AppCompatActivity() {
         functionGeneratorIp = findViewById(R.id.functionGeneratorIpInput)
         functionGeneratorPort = findViewById(R.id.functionGeneratorPortInput)
         totalDurationMinutesInput = findViewById(R.id.totalDurationMinutesInput)
+        selectAllCheckbox = findViewById(R.id.selectAllCheckbox)
         rowsContainer = findViewById(R.id.rowsContainer)
 
         ch1CarrierFrequencyInput.setText("3100000")
@@ -116,6 +118,12 @@ class MainActivity : AppCompatActivity() {
         }
         findViewById<Button>(R.id.runButton).setOnClickListener {
             runEnabledFrequencies()
+        }
+        selectAllCheckbox.setOnCheckedChangeListener { _, isChecked ->
+            for (i in 0 until rowsContainer.childCount) {
+                val row = rowsContainer.getChildAt(i)
+                row.findViewById<CheckBox>(R.id.enabledCheck).isChecked = isChecked
+            }
         }
 
         ch1CarrierFrequencyInput.addTextChangedListener(object : TextWatcher {
@@ -329,7 +337,7 @@ class MainActivity : AppCompatActivity() {
 
         actualInput.setText(actualValue)
         durationInput.setText(durationValue)
-        enabledCheck.isChecked = enabledValue
+        enabledCheck.isChecked = enabledValue || selectAllCheckbox.isChecked
         ch1CalculatedText.text = calculateFrequency(actualValue, ch1CarrierFrequencyInput)
         ch2CalculatedText.text = calculateFrequency(actualValue, ch2CarrierFrequencyInput)
         deleteRowButton.setOnClickListener {

@@ -6,13 +6,13 @@
     <string name="wave_type">CH1 Wave Type</string>
     <string name="offset">CH1 Offset</string>
     <string name="duty_cycle">CH1 Duty Cycle</string>
-    <string name="amplitude">CH1 Aplitude</string>
+    <string name="amplitude">CH1 Amplitude</string>
     <string name="ch2_carrier_frequency">CH2 Carrier Frequency (Hz)</string>
     <string name="ch2_used_frequency">CH2 Used Frequency</string>
     <string name="ch2_wave_type">CH2 Wave Type</string>
     <string name="ch2_offset">CH2 Offset</string>
     <string name="ch2_duty_cycle">CH2 Duty Cycle</string>
-    <string name="ch2_amplitude">CH2 Aplitude</string>
+    <string name="ch2_amplitude">CH2 Amplitude</string>
     <string name="fg_ip">FG IP</string>
     <string name="fg_port">FG Port</string>
     <string name="total_duration_minutes">Total Duration (minutes)</string>
@@ -22,6 +22,7 @@
     <string name="ch2_calculated">CH2 Calculated</string>
     <string name="duration">Duration (seconds)</string>
     <string name="checkbox">Enabled</string>
+    <string name="select_all">Select All</string>
     <string name="delete">Delete</string>
     <string name="add_row">Add Row</string>
     <string name="import_csv">Import CSV</string>
