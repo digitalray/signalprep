@@ -17,6 +17,7 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import com.google.android.material.tabs.TabLayout
 import java.io.BufferedReader
 import java.io.ByteArrayInputStream
 import java.io.InputStreamReader
@@ -26,31 +27,67 @@ import kotlin.math.roundToInt
 
 class MainActivity : AppCompatActivity() {
     private data class FrequencyStep(
-        val ch1SelectedFreq: Double,
-        val ch2SelectedFreq: Double,
         val durationSeconds: Long,
-        val ch1FrequencyMode: String,
-        val ch2FrequencyMode: String
+        val device1Ch1SelectedFreq: Double?,
+        val device1Ch2SelectedFreq: Double?,
+        val device1Ch1FrequencyMode: String,
+        val device1Ch2FrequencyMode: String,
+        val device2Ch1SelectedFreq: Double?,
+        val device2Ch2SelectedFreq: Double?,
+        val device2Ch1FrequencyMode: String,
+        val device2Ch2FrequencyMode: String
+    )
+    private data class DeviceClientContext(
+        val connect: () -> Unit,
+        val setOutput: (Int, Boolean) -> Unit,
+        val setWaveShape: (Int, String) -> Unit,
+        val setAmplitude: (Int, Double) -> Unit,
+        val setOffset: (Int, Double) -> Unit,
+        val setDutyCycle: (Int, Double) -> Unit,
+        val setFrequency: (Int, Double) -> Unit,
+        val closeClient: () -> Unit
     )
     @Volatile
     private var stopRequested: Boolean = false
 
-    private lateinit var ch1CarrierFrequencyInput: EditText
-    private lateinit var ch1UsedFrequencySpinner: Spinner
-    private lateinit var ch1WaveTypeSpinner: Spinner
-    private lateinit var ch1OffsetInput: EditText
-    private lateinit var ch1DutyCycleInput: EditText
-    private lateinit var ch1AmplitudeInput: EditText
-    private lateinit var ch2CarrierFrequencyInput: EditText
-    private lateinit var ch2UsedFrequencySpinner: Spinner
-    private lateinit var ch2WaveTypeSpinner: Spinner
-    private lateinit var ch2OffsetInput: EditText
-    private lateinit var ch2DutyCycleInput: EditText
-    private lateinit var ch2AmplitudeInput: EditText
-    private lateinit var functionGeneratorIp: EditText
-    private lateinit var functionGeneratorPort: EditText
+    private lateinit var device1Ch1CarrierFrequencyInput: EditText
+    private lateinit var device1Ch1UsedFrequencySpinner: Spinner
+    private lateinit var device1Ch1WaveTypeSpinner: Spinner
+    private lateinit var device1Ch1OffsetInput: EditText
+    private lateinit var device1Ch1DutyCycleInput: EditText
+    private lateinit var device1Ch1AmplitudeInput: EditText
+    private lateinit var device1Ch2CarrierFrequencyInput: EditText
+    private lateinit var device1Ch2UsedFrequencySpinner: Spinner
+    private lateinit var device1Ch2WaveTypeSpinner: Spinner
+    private lateinit var device1Ch2OffsetInput: EditText
+    private lateinit var device1Ch2DutyCycleInput: EditText
+    private lateinit var device1Ch2AmplitudeInput: EditText
+    private lateinit var device2Ch1CarrierFrequencyInput: EditText
+    private lateinit var device2Ch1UsedFrequencySpinner: Spinner
+    private lateinit var device2Ch1WaveTypeSpinner: Spinner
+    private lateinit var device2Ch1OffsetInput: EditText
+    private lateinit var device2Ch1DutyCycleInput: EditText
+    private lateinit var device2Ch1AmplitudeInput: EditText
+    private lateinit var device2Ch2CarrierFrequencyInput: EditText
+    private lateinit var device2Ch2UsedFrequencySpinner: Spinner
+    private lateinit var device2Ch2WaveTypeSpinner: Spinner
+    private lateinit var device2Ch2OffsetInput: EditText
+    private lateinit var device2Ch2DutyCycleInput: EditText
+    private lateinit var device2Ch2AmplitudeInput: EditText
+    private lateinit var device1DeviceTypeSpinner: Spinner
+    private lateinit var device2DeviceTypeSpinner: Spinner
+    private lateinit var device1FunctionGeneratorIp: EditText
+    private lateinit var device1FunctionGeneratorPort: EditText
+    private lateinit var device2FunctionGeneratorIp: EditText
+    private lateinit var device2FunctionGeneratorPort: EditText
     private lateinit var totalDurationMinutesInput: EditText
+    private lateinit var device1EnabledCheckbox: CheckBox
+    private lateinit var device2EnabledCheckbox: CheckBox
     private lateinit var selectAllCheckbox: CheckBox
+    private lateinit var appSettingsTitle: TextView
+    private lateinit var deviceTabs: TabLayout
+    private lateinit var device1SettingsContainer: LinearLayout
+    private lateinit var device2SettingsContainer: LinearLayout
     private lateinit var rowsContainer: LinearLayout
     private val importCsvLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
@@ -62,44 +99,94 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        ch1CarrierFrequencyInput = findViewById(R.id.carrierFrequencyInput)
-        ch1UsedFrequencySpinner = findViewById(R.id.usedFrequencySpinner)
-        ch1WaveTypeSpinner = findViewById(R.id.waveTypeSpinner)
-        ch1OffsetInput = findViewById(R.id.offsetInput)
-        ch1DutyCycleInput = findViewById(R.id.dutyCycleInput)
-        ch1AmplitudeInput = findViewById(R.id.amplitudeInput)
-        ch2CarrierFrequencyInput = findViewById(R.id.ch2CarrierFrequencyInput)
-        ch2UsedFrequencySpinner = findViewById(R.id.ch2UsedFrequencySpinner)
-        ch2WaveTypeSpinner = findViewById(R.id.ch2WaveTypeSpinner)
-        ch2OffsetInput = findViewById(R.id.ch2OffsetInput)
-        ch2DutyCycleInput = findViewById(R.id.ch2DutyCycleInput)
-        ch2AmplitudeInput = findViewById(R.id.ch2AmplitudeInput)
-        functionGeneratorIp = findViewById(R.id.functionGeneratorIpInput)
-        functionGeneratorPort = findViewById(R.id.functionGeneratorPortInput)
+        device1Ch1CarrierFrequencyInput = findViewById(R.id.carrierFrequencyInput)
+        device1Ch1UsedFrequencySpinner = findViewById(R.id.usedFrequencySpinner)
+        device1Ch1WaveTypeSpinner = findViewById(R.id.waveTypeSpinner)
+        device1Ch1OffsetInput = findViewById(R.id.offsetInput)
+        device1Ch1DutyCycleInput = findViewById(R.id.dutyCycleInput)
+        device1Ch1AmplitudeInput = findViewById(R.id.amplitudeInput)
+        device1Ch2CarrierFrequencyInput = findViewById(R.id.ch2CarrierFrequencyInput)
+        device1Ch2UsedFrequencySpinner = findViewById(R.id.ch2UsedFrequencySpinner)
+        device1Ch2WaveTypeSpinner = findViewById(R.id.ch2WaveTypeSpinner)
+        device1Ch2OffsetInput = findViewById(R.id.ch2OffsetInput)
+        device1Ch2DutyCycleInput = findViewById(R.id.ch2DutyCycleInput)
+        device1Ch2AmplitudeInput = findViewById(R.id.ch2AmplitudeInput)
+        device2Ch1CarrierFrequencyInput = findViewById(R.id.device2CarrierFrequencyInput)
+        device2Ch1UsedFrequencySpinner = findViewById(R.id.device2UsedFrequencySpinner)
+        device2Ch1WaveTypeSpinner = findViewById(R.id.device2WaveTypeSpinner)
+        device2Ch1OffsetInput = findViewById(R.id.device2OffsetInput)
+        device2Ch1DutyCycleInput = findViewById(R.id.device2DutyCycleInput)
+        device2Ch1AmplitudeInput = findViewById(R.id.device2AmplitudeInput)
+        device2Ch2CarrierFrequencyInput = findViewById(R.id.device2Ch2CarrierFrequencyInput)
+        device2Ch2UsedFrequencySpinner = findViewById(R.id.device2Ch2UsedFrequencySpinner)
+        device2Ch2WaveTypeSpinner = findViewById(R.id.device2Ch2WaveTypeSpinner)
+        device2Ch2OffsetInput = findViewById(R.id.device2Ch2OffsetInput)
+        device2Ch2DutyCycleInput = findViewById(R.id.device2Ch2DutyCycleInput)
+        device2Ch2AmplitudeInput = findViewById(R.id.device2Ch2AmplitudeInput)
+        device1DeviceTypeSpinner = findViewById(R.id.deviceTypeSpinner)
+        device2DeviceTypeSpinner = findViewById(R.id.device2DeviceTypeSpinner)
+        device1FunctionGeneratorIp = findViewById(R.id.functionGeneratorIpInput)
+        device1FunctionGeneratorPort = findViewById(R.id.functionGeneratorPortInput)
+        device2FunctionGeneratorIp = findViewById(R.id.device2FunctionGeneratorIpInput)
+        device2FunctionGeneratorPort = findViewById(R.id.device2FunctionGeneratorPortInput)
         totalDurationMinutesInput = findViewById(R.id.totalDurationMinutesInput)
         selectAllCheckbox = findViewById(R.id.selectAllCheckbox)
+        device1EnabledCheckbox = findViewById(R.id.device1EnabledCheckbox)
+        device2EnabledCheckbox = findViewById(R.id.device2EnabledCheckbox)
+        appSettingsTitle = findViewById(R.id.appSettingsTitle)
+        deviceTabs = findViewById(R.id.deviceTabs)
+        device1SettingsContainer = findViewById(R.id.device1SettingsContainer)
+        device2SettingsContainer = findViewById(R.id.device2SettingsContainer)
         rowsContainer = findViewById(R.id.rowsContainer)
 
-        ch1CarrierFrequencyInput.setText("3100000")
-        ch1OffsetInput.setText("0")
-        ch1DutyCycleInput.setText("50")
-        ch1AmplitudeInput.setText("2")
-        ch2CarrierFrequencyInput.setText("3100000")
-        ch2OffsetInput.setText("0")
-        ch2DutyCycleInput.setText("50")
-        ch2AmplitudeInput.setText("2")
-        functionGeneratorIp.setText("192.168.1.22")
-        functionGeneratorPort.setText("5025")
-        ch1UsedFrequencySpinner.setSelection(1)
-        ch2UsedFrequencySpinner.setSelection(0)
-        ch1WaveTypeSpinner.adapter = ArrayAdapter(
+        device1Ch1CarrierFrequencyInput.setText("3100000")
+        device1Ch1OffsetInput.setText("0")
+        device1Ch1DutyCycleInput.setText("50")
+        device1Ch1AmplitudeInput.setText("2")
+        device1Ch2CarrierFrequencyInput.setText("3100000")
+        device1Ch2OffsetInput.setText("0")
+        device1Ch2DutyCycleInput.setText("50")
+        device1Ch2AmplitudeInput.setText("2")
+        device2Ch1CarrierFrequencyInput.setText("3100000")
+        device2Ch1OffsetInput.setText("0")
+        device2Ch1DutyCycleInput.setText("50")
+        device2Ch1AmplitudeInput.setText("2")
+        device2Ch2CarrierFrequencyInput.setText("3100000")
+        device2Ch2OffsetInput.setText("0")
+        device2Ch2DutyCycleInput.setText("50")
+        device2Ch2AmplitudeInput.setText("2")
+        device1DeviceTypeSpinner.setSelection(0)
+        device2DeviceTypeSpinner.setSelection(1)
+        device1FunctionGeneratorIp.setText("192.168.1.22")
+        device1FunctionGeneratorPort.setText("5025")
+        device2FunctionGeneratorIp.setText("192.168.1.53")
+        device2FunctionGeneratorPort.setText("5025")
+        device1Ch1UsedFrequencySpinner.setSelection(1)
+        device1Ch2UsedFrequencySpinner.setSelection(0)
+        device2Ch1UsedFrequencySpinner.setSelection(0)
+        device2Ch2UsedFrequencySpinner.setSelection(0)
+        device1Ch1WaveTypeSpinner.adapter = ArrayAdapter(
             this,
             android.R.layout.simple_spinner_item,
             Sdg1000xTelnetClient.SUPPORTED_WAVE_SHAPES
         ).apply {
             setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         }
-        ch2WaveTypeSpinner.adapter = ArrayAdapter(
+        device1Ch2WaveTypeSpinner.adapter = ArrayAdapter(
+            this,
+            android.R.layout.simple_spinner_item,
+            Sdg1000xTelnetClient.SUPPORTED_WAVE_SHAPES
+        ).apply {
+            setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        }
+        device2Ch1WaveTypeSpinner.adapter = ArrayAdapter(
+            this,
+            android.R.layout.simple_spinner_item,
+            Sdg1000xTelnetClient.SUPPORTED_WAVE_SHAPES
+        ).apply {
+            setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        }
+        device2Ch2WaveTypeSpinner.adapter = ArrayAdapter(
             this,
             android.R.layout.simple_spinner_item,
             Sdg1000xTelnetClient.SUPPORTED_WAVE_SHAPES
@@ -119,6 +206,15 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.runButton).setOnClickListener {
             runEnabledFrequencies()
         }
+        deviceTabs.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
+            override fun onTabSelected(tab: TabLayout.Tab) {
+                val isDevice1 = tab.position == 0
+                applyDeviceTabVisibility(isDevice1)
+            }
+            override fun onTabUnselected(tab: TabLayout.Tab) {}
+            override fun onTabReselected(tab: TabLayout.Tab) {}
+        })
+        applyDeviceTabVisibility(isDevice1 = true)
         selectAllCheckbox.setOnCheckedChangeListener { _, isChecked ->
             for (i in 0 until rowsContainer.childCount) {
                 val row = rowsContainer.getChildAt(i)
@@ -126,14 +222,14 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        ch1CarrierFrequencyInput.addTextChangedListener(object : TextWatcher {
+        device1Ch1CarrierFrequencyInput.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             override fun afterTextChanged(s: Editable?) {
                 refreshAllRows()
             }
         })
-        ch2CarrierFrequencyInput.addTextChangedListener(object : TextWatcher {
+        device1Ch2CarrierFrequencyInput.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             override fun afterTextChanged(s: Editable?) {
@@ -147,10 +243,17 @@ class MainActivity : AppCompatActivity() {
     private fun runEnabledFrequencies() {
         refreshAllRows()
         stopRequested = false
-        val ch1SelectedMode = ch1UsedFrequencySpinner.selectedItem?.toString() ?: "Actual"
-        val ch2SelectedMode = ch2UsedFrequencySpinner.selectedItem?.toString() ?: "Actual"
-        val ch1UseActual = ch1SelectedMode.equals("Actual", ignoreCase = true)
-        val ch2UseActual = ch2SelectedMode.equals("Actual", ignoreCase = true)
+        val device1Enabled = device1EnabledCheckbox.isChecked
+        val device2Enabled = device2EnabledCheckbox.isChecked
+        if (!device1Enabled && !device2Enabled) {
+            Toast.makeText(this, "No device enabled.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val device1Ch1Mode = device1Ch1UsedFrequencySpinner.selectedItem?.toString() ?: "Actual"
+        val device1Ch2Mode = device1Ch2UsedFrequencySpinner.selectedItem?.toString() ?: "Actual"
+        val device2Ch1Mode = device2Ch1UsedFrequencySpinner.selectedItem?.toString() ?: "Actual"
+        val device2Ch2Mode = device2Ch2UsedFrequencySpinner.selectedItem?.toString() ?: "Actual"
 
         val steps = mutableListOf<FrequencyStep>()
         for (i in 0 until rowsContainer.childCount) {
@@ -163,27 +266,40 @@ class MainActivity : AppCompatActivity() {
             val ch2CalculatedText = row.findViewById<TextView>(R.id.ch2CalculatedText).text.toString().trim()
             val durationText = row.findViewById<EditText>(R.id.durationInput).text.toString().trim()
 
-            val ch1SelectedFreq = if (ch1UseActual) {
-                actualText.toDoubleOrNull()
-            } else {
-                ch1CalculatedText.toDoubleOrNull()
-            } ?: continue
-            val ch2SelectedFreq = if (ch2UseActual) {
-                actualText.toDoubleOrNull()
-            } else {
-                ch2CalculatedText.toDoubleOrNull()
-            } ?: continue
+            val actualValue = actualText.toDoubleOrNull()
+            val ch1CalculatedValue = ch1CalculatedText.toDoubleOrNull()
+            val ch2CalculatedValue = ch2CalculatedText.toDoubleOrNull()
+
+            val device1Ch1Freq = if (device1Enabled) {
+                if (device1Ch1Mode.equals("Actual", true)) actualValue else ch1CalculatedValue
+            } else null
+            val device1Ch2Freq = if (device1Enabled) {
+                if (device1Ch2Mode.equals("Actual", true)) actualValue else ch2CalculatedValue
+            } else null
+            val device2Ch1Freq = if (device2Enabled) {
+                if (device2Ch1Mode.equals("Actual", true)) actualValue else ch1CalculatedValue
+            } else null
+            val device2Ch2Freq = if (device2Enabled) {
+                if (device2Ch2Mode.equals("Actual", true)) actualValue else ch2CalculatedValue
+            } else null
+
+            if (device1Enabled && (device1Ch1Freq == null || device1Ch2Freq == null)) continue
+            if (device2Enabled && (device2Ch1Freq == null || device2Ch2Freq == null)) continue
 
             val durationSeconds = parseDurationSeconds(durationText) ?: continue
             if (durationSeconds <= 0) continue
 
             steps.add(
                 FrequencyStep(
-                    ch1SelectedFreq = ch1SelectedFreq,
-                    ch2SelectedFreq = ch2SelectedFreq,
                     durationSeconds = durationSeconds,
-                    ch1FrequencyMode = ch1SelectedMode,
-                    ch2FrequencyMode = ch2SelectedMode
+                    device1Ch1SelectedFreq = device1Ch1Freq,
+                    device1Ch2SelectedFreq = device1Ch2Freq,
+                    device1Ch1FrequencyMode = device1Ch1Mode,
+                    device1Ch2FrequencyMode = device1Ch2Mode,
+                    device2Ch1SelectedFreq = device2Ch1Freq,
+                    device2Ch2SelectedFreq = device2Ch2Freq,
+                    device2Ch1FrequencyMode = device2Ch1Mode,
+                    device2Ch2FrequencyMode = device2Ch2Mode
                 )
             )
         }
@@ -193,64 +309,93 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        val host = functionGeneratorIp.text.toString().trim()
-        if (host.isBlank()) {
-            Toast.makeText(this, "FG IP is required.", Toast.LENGTH_SHORT).show()
+        val device1Host = device1FunctionGeneratorIp.text.toString().trim()
+        val device1Port = device1FunctionGeneratorPort.text.toString().trim().toIntOrNull()
+        val device2Host = device2FunctionGeneratorIp.text.toString().trim()
+        val device2Port = device2FunctionGeneratorPort.text.toString().trim().toIntOrNull()
+        if (device1Enabled && (device1Host.isBlank() || device1Port == null || device1Port !in 1..65535)) {
+            Toast.makeText(this, "Device 1 FG IP/Port is invalid.", Toast.LENGTH_SHORT).show()
             return
         }
-        val port = functionGeneratorPort.text.toString().trim().toIntOrNull()
-        if (port == null || port !in 1..65535) {
-            Toast.makeText(this, "FG Port must be a number between 1 and 65535.", Toast.LENGTH_SHORT).show()
+        if (device2Enabled && (device2Host.isBlank() || device2Port == null || device2Port !in 1..65535)) {
+            Toast.makeText(this, "Device 2 FG IP/Port is invalid.", Toast.LENGTH_SHORT).show()
             return
         }
-        val ch1WaveShape = ch1WaveTypeSpinner.selectedItem?.toString() ?: "SINE"
-        val ch1Amplitude = ch1AmplitudeInput.text.toString().toDoubleOrNull() ?: 2.0
-        val ch1Offset = ch1OffsetInput.text.toString().toDoubleOrNull() ?: 0.0
-        val ch1DutyCycle = ch1DutyCycleInput.text.toString().toDoubleOrNull() ?: 50.0
-        val ch2WaveShape = ch2WaveTypeSpinner.selectedItem?.toString() ?: "SINE"
-        val ch2Amplitude = ch2AmplitudeInput.text.toString().toDoubleOrNull() ?: 2.0
-        val ch2Offset = ch2OffsetInput.text.toString().toDoubleOrNull() ?: 0.0
-        val ch2DutyCycle = ch2DutyCycleInput.text.toString().toDoubleOrNull() ?: 50.0
 
         Thread {
+            var device1Client: DeviceClientContext? = null
+            var device2Client: DeviceClientContext? = null
             try {
-                Sdg1000xTelnetClient(
-                    host = host,
-                    port = port,
-                    connectTimeoutMs = 10_000,
-                    readTimeoutMs = 10_000
-                ).use { client ->
-                    client.connect()
-                    client.setOutput(channel = 1, enabled = true)
-                    client.setOutput(channel = 2, enabled = true)
-                    client.setWaveShape(channel = 1, waveShape = ch1WaveShape)
-                    client.setAmplitude(channel = 1, amplitudeVpp = ch1Amplitude)
-                    client.setOffset(channel = 1, offsetV = ch1Offset)
-                    client.setDutyCycle(channel = 1, dutyPercent = ch1DutyCycle)
-                    client.setWaveShape(channel = 2, waveShape = ch2WaveShape)
-                    client.setAmplitude(channel = 2, amplitudeVpp = ch2Amplitude)
-                    client.setOffset(channel = 2, offsetV = ch2Offset)
-                    client.setDutyCycle(channel = 2, dutyPercent = ch2DutyCycle)
-                    client.setOutput(channel = 1, enabled = true)
-                    client.setOutput(channel = 2, enabled = true)
+                if (device1Enabled) {
+                    device1Client = createDeviceClient(
+                        deviceType = device1DeviceTypeSpinner.selectedItem?.toString() ?: "SDG1000X",
+                        host = device1Host,
+                        port = device1Port ?: 5025
+                    )
+                    device1Client.connect()
+                    device1Client.setOutput(1, true)
+                    device1Client.setOutput(2, true)
+                    device1Client.setWaveShape(1, device1Ch1WaveTypeSpinner.selectedItem?.toString() ?: "SINE")
+                    device1Client.setAmplitude(1, device1Ch1AmplitudeInput.text.toString().toDoubleOrNull() ?: 2.0)
+                    device1Client.setOffset(1, device1Ch1OffsetInput.text.toString().toDoubleOrNull() ?: 0.0)
+                    device1Client.setDutyCycle(1, device1Ch1DutyCycleInput.text.toString().toDoubleOrNull() ?: 50.0)
+                    device1Client.setWaveShape(2, device1Ch2WaveTypeSpinner.selectedItem?.toString() ?: "SINE")
+                    device1Client.setAmplitude(2, device1Ch2AmplitudeInput.text.toString().toDoubleOrNull() ?: 2.0)
+                    device1Client.setOffset(2, device1Ch2OffsetInput.text.toString().toDoubleOrNull() ?: 0.0)
+                    device1Client.setDutyCycle(2, device1Ch2DutyCycleInput.text.toString().toDoubleOrNull() ?: 50.0)
+                }
 
-                    for (step in steps) {
-                        if (stopRequested) break
-                        client.setFrequency(channel = 1, frequencyHz = step.ch1SelectedFreq)
-                        client.setFrequency(channel = 2, frequencyHz = step.ch2SelectedFreq)
-                        val shouldContinue = runCountdownPopup(
-                            step.ch1SelectedFreq,
-                            step.ch2SelectedFreq,
-                            step.durationSeconds,
-                            step.ch1FrequencyMode,
-                            step.ch2FrequencyMode
-                        )
-                        if (!shouldContinue) break
+                if (device2Enabled) {
+                    device2Client = createDeviceClient(
+                        deviceType = device2DeviceTypeSpinner.selectedItem?.toString() ?: "SDG7000A",
+                        host = device2Host,
+                        port = device2Port ?: 5025
+                    )
+                    device2Client.connect()
+                    device2Client.setOutput(1, true)
+                    device2Client.setOutput(2, true)
+                    device2Client.setWaveShape(1, device2Ch1WaveTypeSpinner.selectedItem?.toString() ?: "SINE")
+                    device2Client.setAmplitude(1, device2Ch1AmplitudeInput.text.toString().toDoubleOrNull() ?: 2.0)
+                    device2Client.setOffset(1, device2Ch1OffsetInput.text.toString().toDoubleOrNull() ?: 0.0)
+                    device2Client.setDutyCycle(1, device2Ch1DutyCycleInput.text.toString().toDoubleOrNull() ?: 50.0)
+                    device2Client.setWaveShape(2, device2Ch2WaveTypeSpinner.selectedItem?.toString() ?: "SINE")
+                    device2Client.setAmplitude(2, device2Ch2AmplitudeInput.text.toString().toDoubleOrNull() ?: 2.0)
+                    device2Client.setOffset(2, device2Ch2OffsetInput.text.toString().toDoubleOrNull() ?: 0.0)
+                    device2Client.setDutyCycle(2, device2Ch2DutyCycleInput.text.toString().toDoubleOrNull() ?: 50.0)
+                }
+
+                for (step in steps) {
+                    if (stopRequested) break
+                    if (device1Enabled) {
+                        device1Client?.setOutput(1, true)
+                        device1Client?.setOutput(2, true)
+                        device1Client?.setFrequency(1, step.device1Ch1SelectedFreq ?: continue)
+                        device1Client?.setFrequency(2, step.device1Ch2SelectedFreq ?: continue)
+                    }
+                    if (device2Enabled) {
+                        device2Client?.setOutput(1, true)
+                        device2Client?.setOutput(2, true)
+                        device2Client?.setFrequency(1, step.device2Ch1SelectedFreq ?: continue)
+                        device2Client?.setFrequency(2, step.device2Ch2SelectedFreq ?: continue)
                     }
 
-                    client.setOutput(channel = 1, enabled = false)
-                    client.setOutput(channel = 2, enabled = false)
+                    val device1Status = if (device1Enabled) {
+                        "Device 1 CH1 ${String.format("%.2f", step.device1Ch1SelectedFreq)} Hz (${step.device1Ch1FrequencyMode}), " +
+                            "CH2 ${String.format("%.2f", step.device1Ch2SelectedFreq)} Hz (${step.device1Ch2FrequencyMode})"
+                    } else null
+                    val device2Status = if (device2Enabled) {
+                        "Device 2 CH1 ${String.format("%.2f", step.device2Ch1SelectedFreq)} Hz (${step.device2Ch1FrequencyMode}), " +
+                            "CH2 ${String.format("%.2f", step.device2Ch2SelectedFreq)} Hz (${step.device2Ch2FrequencyMode})"
+                    } else null
+
+                    val shouldContinue = runCountdownPopup(
+                        durationSeconds = step.durationSeconds,
+                        device1Status = device1Status,
+                        device2Status = device2Status
+                    )
+                    if (!shouldContinue) break
                 }
+
                 runOnUiThread {
                     if (stopRequested) {
                         Toast.makeText(this, "Run stopped.", Toast.LENGTH_SHORT).show()
@@ -264,25 +409,31 @@ class MainActivity : AppCompatActivity() {
                     val reason = "${e::class.java.simpleName}: ${e.message}"
                     Toast.makeText(this, "Run failed: $reason", Toast.LENGTH_LONG).show()
                 }
+            } finally {
+                runCatching { device1Client?.setOutput(1, false) }
+                runCatching { device1Client?.setOutput(2, false) }
+                runCatching { device2Client?.setOutput(1, false) }
+                runCatching { device2Client?.setOutput(2, false) }
+                runCatching { device1Client?.closeClient() }
+                runCatching { device2Client?.closeClient() }
             }
         }.start()
     }
 
     private fun runCountdownPopup(
-        ch1FrequencyHz: Double,
-        ch2FrequencyHz: Double,
         durationSeconds: Long,
-        ch1FrequencyMode: String,
-        ch2FrequencyMode: String
+        device1Status: String?,
+        device2Status: String?
     ): Boolean {
         var countdownDialog: AlertDialog? = null
         runOnUiThread {
+            val statusText = buildString {
+                if (!device1Status.isNullOrBlank()) appendLine(device1Status)
+                if (!device2Status.isNullOrBlank()) appendLine(device2Status)
+            }.trim()
             countdownDialog = AlertDialog.Builder(this)
-                .setTitle(
-                    "CH1 ${String.format("%.2f", ch1FrequencyHz)} Hz ($ch1FrequencyMode) | " +
-                        "CH2 ${String.format("%.2f", ch2FrequencyHz)} Hz ($ch2FrequencyMode)"
-                )
-                .setMessage("Remaining: $durationSeconds s")
+                .setTitle("Run Status")
+                .setMessage("$statusText\n\nRemaining: $durationSeconds s")
                 .setNegativeButton("Stop") { _, _ ->
                     stopRequested = true
                 }
@@ -299,7 +450,11 @@ class MainActivity : AppCompatActivity() {
                 return false
             }
             runOnUiThread {
-                countdownDialog?.setMessage("Remaining: $remaining s")
+                val statusText = buildString {
+                    if (!device1Status.isNullOrBlank()) appendLine(device1Status)
+                    if (!device2Status.isNullOrBlank()) appendLine(device2Status)
+                }.trim()
+                countdownDialog?.setMessage("$statusText\n\nRemaining: $remaining s")
             }
             if (remaining > 0) {
                 Thread.sleep(1000)
@@ -330,16 +485,16 @@ class MainActivity : AppCompatActivity() {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             override fun afterTextChanged(s: Editable?) {
-                ch1CalculatedText.text = calculateFrequency(actualInput.text.toString(), ch1CarrierFrequencyInput)
-                ch2CalculatedText.text = calculateFrequency(actualInput.text.toString(), ch2CarrierFrequencyInput)
+                ch1CalculatedText.text = calculateFrequency(actualInput.text.toString(), device1Ch1CarrierFrequencyInput)
+                ch2CalculatedText.text = calculateFrequency(actualInput.text.toString(), device1Ch2CarrierFrequencyInput)
             }
         })
 
         actualInput.setText(actualValue)
         durationInput.setText(durationValue)
         enabledCheck.isChecked = enabledValue || selectAllCheckbox.isChecked
-        ch1CalculatedText.text = calculateFrequency(actualValue, ch1CarrierFrequencyInput)
-        ch2CalculatedText.text = calculateFrequency(actualValue, ch2CarrierFrequencyInput)
+        ch1CalculatedText.text = calculateFrequency(actualValue, device1Ch1CarrierFrequencyInput)
+        ch2CalculatedText.text = calculateFrequency(actualValue, device1Ch2CarrierFrequencyInput)
         deleteRowButton.setOnClickListener {
             rowsContainer.removeView(rowView)
         }
@@ -426,8 +581,8 @@ class MainActivity : AppCompatActivity() {
             val actualInput = row.findViewById<EditText>(R.id.actualInput)
             val ch1CalculatedText = row.findViewById<TextView>(R.id.ch1CalculatedText)
             val ch2CalculatedText = row.findViewById<TextView>(R.id.ch2CalculatedText)
-            ch1CalculatedText.text = calculateFrequency(actualInput.text.toString(), ch1CarrierFrequencyInput)
-            ch2CalculatedText.text = calculateFrequency(actualInput.text.toString(), ch2CarrierFrequencyInput)
+            ch1CalculatedText.text = calculateFrequency(actualInput.text.toString(), device1Ch1CarrierFrequencyInput)
+            ch2CalculatedText.text = calculateFrequency(actualInput.text.toString(), device1Ch2CarrierFrequencyInput)
         }
     }
 
@@ -501,5 +656,61 @@ class MainActivity : AppCompatActivity() {
         }
 
         Toast.makeText(this, "Applied $secondsPerRow seconds to ${enabledRows.size} enabled rows.", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun applyDeviceTabVisibility(isDevice1: Boolean) {
+        // device2SettingsContainer is currently nested in device1SettingsContainer.
+        // Toggle sibling visibility so only the chosen device settings are visible.
+        for (i in 0 until device1SettingsContainer.childCount) {
+            val child = device1SettingsContainer.getChildAt(i)
+            if (child.id == R.id.device2SettingsContainer) {
+                child.visibility = if (isDevice1) android.view.View.GONE else android.view.View.VISIBLE
+            } else {
+                child.visibility = if (isDevice1) android.view.View.VISIBLE else android.view.View.GONE
+            }
+        }
+        appSettingsTitle.text = if (isDevice1) "Device 1 Settings" else "Device 2 Settings"
+    }
+
+    private fun createDeviceClient(
+        deviceType: String,
+        host: String,
+        port: Int
+    ): DeviceClientContext {
+        return if (deviceType.equals("SDG7000A", ignoreCase = true)) {
+            val client = Sdg7000aTelnetClient(
+                host = host,
+                port = port,
+                connectTimeoutMs = 10_000,
+                readTimeoutMs = 10_000
+            )
+            DeviceClientContext(
+                connect = { client.connect() },
+                setOutput = { channel, enabled -> client.setOutput(channel, enabled) },
+                setWaveShape = { channel, wave -> client.setWaveShape(channel, wave) },
+                setAmplitude = { channel, amp -> client.setAmplitude(channel, amp) },
+                setOffset = { channel, offset -> client.setOffset(channel, offset) },
+                setDutyCycle = { channel, duty -> client.setDutyCycle(channel, duty) },
+                setFrequency = { channel, freq -> client.setFrequency(channel, freq) },
+                closeClient = { client.close() }
+            )
+        } else {
+            val client = Sdg1000xTelnetClient(
+                host = host,
+                port = port,
+                connectTimeoutMs = 10_000,
+                readTimeoutMs = 10_000
+            )
+            DeviceClientContext(
+                connect = { client.connect() },
+                setOutput = { channel, enabled -> client.setOutput(channel, enabled) },
+                setWaveShape = { channel, wave -> client.setWaveShape(channel, wave) },
+                setAmplitude = { channel, amp -> client.setAmplitude(channel, amp) },
+                setOffset = { channel, offset -> client.setOffset(channel, offset) },
+                setDutyCycle = { channel, duty -> client.setDutyCycle(channel, duty) },
+                setFrequency = { channel, freq -> client.setFrequency(channel, freq) },
+                closeClient = { client.close() }
+            )
+        }
     }
 }
