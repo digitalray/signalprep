@@ -14,7 +14,16 @@
         android:inputType="numberDecimal" />
 
     <TextView
-        android:id="@+id/calculatedText"
+        android:id="@+id/ch1CalculatedText"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_vertical"
+        android:layout_weight="1"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp" />
+
+    <TextView
+        android:id="@+id/ch2CalculatedText"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_gravity="center_vertical"

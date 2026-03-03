@@ -125,6 +125,13 @@ class MainActivity : AppCompatActivity() {
                 refreshAllRows()
             }
         })
+        ch2CarrierFrequencyInput.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                refreshAllRows()
+            }
+        })
 
         addRow()
     }
@@ -144,18 +151,19 @@ class MainActivity : AppCompatActivity() {
             if (!enabled) continue
 
             val actualText = row.findViewById<EditText>(R.id.actualInput).text.toString().trim()
-            val calculatedText = row.findViewById<TextView>(R.id.calculatedText).text.toString().trim()
+            val ch1CalculatedText = row.findViewById<TextView>(R.id.ch1CalculatedText).text.toString().trim()
+            val ch2CalculatedText = row.findViewById<TextView>(R.id.ch2CalculatedText).text.toString().trim()
             val durationText = row.findViewById<EditText>(R.id.durationInput).text.toString().trim()
 
             val ch1SelectedFreq = if (ch1UseActual) {
                 actualText.toDoubleOrNull()
             } else {
-                calculatedText.toDoubleOrNull()
+                ch1CalculatedText.toDoubleOrNull()
             } ?: continue
             val ch2SelectedFreq = if (ch2UseActual) {
                 actualText.toDoubleOrNull()
             } else {
-                calculatedText.toDoubleOrNull()
+                ch2CalculatedText.toDoubleOrNull()
             } ?: continue
 
             val durationSeconds = parseDurationSeconds(durationText) ?: continue
@@ -304,7 +312,8 @@ class MainActivity : AppCompatActivity() {
         val rowView = LayoutInflater.from(this).inflate(R.layout.item_frequency_row, rowsContainer, false)
 
         val actualInput = rowView.findViewById<EditText>(R.id.actualInput)
-        val calculatedText = rowView.findViewById<TextView>(R.id.calculatedText)
+        val ch1CalculatedText = rowView.findViewById<TextView>(R.id.ch1CalculatedText)
+        val ch2CalculatedText = rowView.findViewById<TextView>(R.id.ch2CalculatedText)
         val durationInput = rowView.findViewById<EditText>(R.id.durationInput)
         val enabledCheck = rowView.findViewById<CheckBox>(R.id.enabledCheck)
         val deleteRowButton = rowView.findViewById<Button>(R.id.deleteRowButton)
@@ -313,14 +322,16 @@ class MainActivity : AppCompatActivity() {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             override fun afterTextChanged(s: Editable?) {
-                calculatedText.text = calculateFrequency(actualInput.text.toString())
+                ch1CalculatedText.text = calculateFrequency(actualInput.text.toString(), ch1CarrierFrequencyInput)
+                ch2CalculatedText.text = calculateFrequency(actualInput.text.toString(), ch2CarrierFrequencyInput)
             }
         })
 
         actualInput.setText(actualValue)
         durationInput.setText(durationValue)
         enabledCheck.isChecked = enabledValue
-        calculatedText.text = calculateFrequency(actualValue)
+        ch1CalculatedText.text = calculateFrequency(actualValue, ch1CarrierFrequencyInput)
+        ch2CalculatedText.text = calculateFrequency(actualValue, ch2CarrierFrequencyInput)
         deleteRowButton.setOnClickListener {
             rowsContainer.removeView(rowView)
         }
@@ -405,14 +416,16 @@ class MainActivity : AppCompatActivity() {
         for (i in 0 until rowsContainer.childCount) {
             val row = rowsContainer.getChildAt(i)
             val actualInput = row.findViewById<EditText>(R.id.actualInput)
-            val calculatedText = row.findViewById<TextView>(R.id.calculatedText)
-            calculatedText.text = calculateFrequency(actualInput.text.toString())
+            val ch1CalculatedText = row.findViewById<TextView>(R.id.ch1CalculatedText)
+            val ch2CalculatedText = row.findViewById<TextView>(R.id.ch2CalculatedText)
+            ch1CalculatedText.text = calculateFrequency(actualInput.text.toString(), ch1CarrierFrequencyInput)
+            ch2CalculatedText.text = calculateFrequency(actualInput.text.toString(), ch2CarrierFrequencyInput)
         }
     }
 
-    private fun calculateFrequency(actualText: String): String {
+    private fun calculateFrequency(actualText: String, carrierInput: EditText): String {
         val actualFreq = actualText.toDoubleOrNull() ?: return ""
-        val carrierFreq = ch1CarrierFrequencyInput.text.toString().toDoubleOrNull() ?: 3_100_000.0
+        val carrierFreq = carrierInput.text.toString().toDoubleOrNull() ?: 3_100_000.0
         if (actualFreq <= 0.0 || carrierFreq <= 0.0) return ""
 
         // 1) freqMultiplier ≈ (carrierFreq / actualFreq), rounded

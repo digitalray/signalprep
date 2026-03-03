@@ -18,7 +18,8 @@
     <string name="total_duration_minutes">Total Duration (minutes)</string>
     <string name="apply_duration">Apply Duration</string>
     <string name="actual">Actual</string>
-    <string name="calculated">Calculated</string>
+    <string name="calculated">CH1 Calculated</string>
+    <string name="ch2_calculated">CH2 Calculated</string>
     <string name="duration">Duration (seconds)</string>
     <string name="checkbox">Enabled</string>
     <string name="delete">Delete</string>
