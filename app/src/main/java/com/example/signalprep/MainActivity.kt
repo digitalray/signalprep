@@ -40,6 +40,7 @@ class MainActivity : AppCompatActivity() {
     private data class DeviceClientContext(
         val connect: () -> Unit,
         val setOutput: (Int, Boolean) -> Unit,
+        val setLoad: (Int, String) -> Unit,
         val setWaveShape: (Int, String) -> Unit,
         val setAmplitude: (Int, Double) -> Unit,
         val setOffset: (Int, Double) -> Unit,
@@ -62,6 +63,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var device1Ch2OffsetInput: EditText
     private lateinit var device1Ch2DutyCycleInput: EditText
     private lateinit var device1Ch2AmplitudeInput: EditText
+    private lateinit var device1Ch1LoadSpinner: Spinner
+    private lateinit var device1Ch2LoadSpinner: Spinner
     private lateinit var device2Ch1CarrierFrequencyInput: EditText
     private lateinit var device2Ch1UsedFrequencySpinner: Spinner
     private lateinit var device2Ch1WaveTypeSpinner: Spinner
@@ -74,6 +77,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var device2Ch2OffsetInput: EditText
     private lateinit var device2Ch2DutyCycleInput: EditText
     private lateinit var device2Ch2AmplitudeInput: EditText
+    private lateinit var device2Ch1LoadSpinner: Spinner
+    private lateinit var device2Ch2LoadSpinner: Spinner
     private lateinit var device1DeviceTypeSpinner: Spinner
     private lateinit var device2DeviceTypeSpinner: Spinner
     private lateinit var device1FunctionGeneratorIp: EditText
@@ -111,6 +116,8 @@ class MainActivity : AppCompatActivity() {
         device1Ch2OffsetInput = findViewById(R.id.ch2OffsetInput)
         device1Ch2DutyCycleInput = findViewById(R.id.ch2DutyCycleInput)
         device1Ch2AmplitudeInput = findViewById(R.id.ch2AmplitudeInput)
+        device1Ch1LoadSpinner = findViewById(R.id.device1Ch1LoadSpinner)
+        device1Ch2LoadSpinner = findViewById(R.id.device1Ch2LoadSpinner)
         device2Ch1CarrierFrequencyInput = findViewById(R.id.device2CarrierFrequencyInput)
         device2Ch1UsedFrequencySpinner = findViewById(R.id.device2UsedFrequencySpinner)
         device2Ch1WaveTypeSpinner = findViewById(R.id.device2WaveTypeSpinner)
@@ -123,6 +130,8 @@ class MainActivity : AppCompatActivity() {
         device2Ch2OffsetInput = findViewById(R.id.device2Ch2OffsetInput)
         device2Ch2DutyCycleInput = findViewById(R.id.device2Ch2DutyCycleInput)
         device2Ch2AmplitudeInput = findViewById(R.id.device2Ch2AmplitudeInput)
+        device2Ch1LoadSpinner = findViewById(R.id.device2Ch1LoadSpinner)
+        device2Ch2LoadSpinner = findViewById(R.id.device2Ch2LoadSpinner)
         device1DeviceTypeSpinner = findViewById(R.id.deviceTypeSpinner)
         device2DeviceTypeSpinner = findViewById(R.id.device2DeviceTypeSpinner)
         device1FunctionGeneratorIp = findViewById(R.id.functionGeneratorIpInput)
@@ -161,6 +170,10 @@ class MainActivity : AppCompatActivity() {
         device1FunctionGeneratorPort.setText("5025")
         device2FunctionGeneratorIp.setText("192.168.1.53")
         device2FunctionGeneratorPort.setText("5025")
+        device1Ch1LoadSpinner.setSelection(0)
+        device1Ch2LoadSpinner.setSelection(0)
+        device2Ch1LoadSpinner.setSelection(0)
+        device2Ch2LoadSpinner.setSelection(0)
         device1Ch1UsedFrequencySpinner.setSelection(1)
         device1Ch2UsedFrequencySpinner.setSelection(0)
         device2Ch1UsedFrequencySpinner.setSelection(0)
@@ -335,6 +348,8 @@ class MainActivity : AppCompatActivity() {
                     device1Client.connect()
                     device1Client.setOutput(1, true)
                     device1Client.setOutput(2, true)
+                    device1Client.setLoad(1, toLoadCommandValue(device1Ch1LoadSpinner.selectedItem?.toString()))
+                    device1Client.setLoad(2, toLoadCommandValue(device1Ch2LoadSpinner.selectedItem?.toString()))
                     device1Client.setWaveShape(1, device1Ch1WaveTypeSpinner.selectedItem?.toString() ?: "SINE")
                     device1Client.setAmplitude(1, device1Ch1AmplitudeInput.text.toString().toDoubleOrNull() ?: 2.0)
                     device1Client.setOffset(1, device1Ch1OffsetInput.text.toString().toDoubleOrNull() ?: 0.0)
@@ -354,6 +369,8 @@ class MainActivity : AppCompatActivity() {
                     device2Client.connect()
                     device2Client.setOutput(1, true)
                     device2Client.setOutput(2, true)
+                    device2Client.setLoad(1, toLoadCommandValue(device2Ch1LoadSpinner.selectedItem?.toString()))
+                    device2Client.setLoad(2, toLoadCommandValue(device2Ch2LoadSpinner.selectedItem?.toString()))
                     device2Client.setWaveShape(1, device2Ch1WaveTypeSpinner.selectedItem?.toString() ?: "SINE")
                     device2Client.setAmplitude(1, device2Ch1AmplitudeInput.text.toString().toDoubleOrNull() ?: 2.0)
                     device2Client.setOffset(1, device2Ch1OffsetInput.text.toString().toDoubleOrNull() ?: 0.0)
@@ -687,6 +704,7 @@ class MainActivity : AppCompatActivity() {
             DeviceClientContext(
                 connect = { client.connect() },
                 setOutput = { channel, enabled -> client.setOutput(channel, enabled) },
+                setLoad = { channel, mode -> client.setLoadMode(channel, mode) },
                 setWaveShape = { channel, wave -> client.setWaveShape(channel, wave) },
                 setAmplitude = { channel, amp -> client.setAmplitude(channel, amp) },
                 setOffset = { channel, offset -> client.setOffset(channel, offset) },
@@ -704,6 +722,7 @@ class MainActivity : AppCompatActivity() {
             DeviceClientContext(
                 connect = { client.connect() },
                 setOutput = { channel, enabled -> client.setOutput(channel, enabled) },
+                setLoad = { channel, mode -> client.setLoadMode(channel, mode) },
                 setWaveShape = { channel, wave -> client.setWaveShape(channel, wave) },
                 setAmplitude = { channel, amp -> client.setAmplitude(channel, amp) },
                 setOffset = { channel, offset -> client.setOffset(channel, offset) },
@@ -712,5 +731,9 @@ class MainActivity : AppCompatActivity() {
                 closeClient = { client.close() }
             )
         }
+    }
+
+    private fun toLoadCommandValue(selection: String?): String {
+        return if (selection.equals("50ohm", ignoreCase = true)) "50" else "HZ"
     }
 }
