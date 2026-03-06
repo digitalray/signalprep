@@ -11,12 +11,14 @@
     <string name="offset">Device 1 CH1 Offset</string>
     <string name="duty_cycle">Device 1 CH1 Duty Cycle</string>
     <string name="amplitude">Device 1 CH1 Amplitude</string>
+    <string name="load">Device 1 CH1 Load</string>
     <string name="ch2_carrier_frequency">Device 1 CH2 Carrier Frequency (Hz)</string>
     <string name="ch2_used_frequency">Device 1 CH2 Used Frequency</string>
     <string name="ch2_wave_type">Device 1 CH2 Wave Type</string>
     <string name="ch2_offset">Device 1 CH2 Offset</string>
     <string name="ch2_duty_cycle">Device 1 CH2 Duty Cycle</string>
     <string name="ch2_amplitude">Device 1 CH2 Amplitude</string>
+    <string name="ch2_load">Device 1 CH2 Load</string>
     <string name="device_type">Device 1 Device Type</string>
     <string name="fg_ip">Device 1 FG IP</string>
     <string name="fg_port">Device 1 FG Port</string>
@@ -26,12 +28,14 @@
     <string name="device2_offset">Device 2 CH1 Offset</string>
     <string name="device2_duty_cycle">Device 2 CH1 Duty Cycle</string>
     <string name="device2_amplitude">Device 2 CH1 Amplitude</string>
+    <string name="device2_load">Device 2 CH1 Load</string>
     <string name="device2_ch2_carrier_frequency">Device 2 CH2 Carrier Frequency (Hz)</string>
     <string name="device2_ch2_used_frequency">Device 2 CH2 Used Frequency</string>
     <string name="device2_ch2_wave_type">Device 2 CH2 Wave Type</string>
     <string name="device2_ch2_offset">Device 2 CH2 Offset</string>
     <string name="device2_ch2_duty_cycle">Device 2 CH2 Duty Cycle</string>
     <string name="device2_ch2_amplitude">Device 2 CH2 Amplitude</string>
+    <string name="device2_ch2_load">Device 2 CH2 Load</string>
     <string name="device2_device_type">Device 2 Device Type</string>
     <string name="device2_fg_ip">Device 2 FG IP</string>
     <string name="device2_fg_port">Device 2 FG Port</string>
@@ -57,6 +61,11 @@
     <string-array name="used_frequency_options">
         <item>Actual</item>
         <item>Calculated</item>
+    </string-array>
+
+    <string-array name="load_options">
+        <item>HiZ</item>
+        <item>50ohm</item>
     </string-array>
 
     <string-array name="device_type_options">

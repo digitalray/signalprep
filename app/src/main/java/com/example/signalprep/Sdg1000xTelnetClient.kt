@@ -78,6 +78,23 @@ class Sdg1000xTelnetClient(
     }
 
     @Throws(IOException::class)
+    fun setLoadImpedance(channel: Int, ohms: Int = 50) {
+        validateChannel(channel)
+        require(ohms > 0) { "Load impedance must be positive." }
+        send("C$channel:OUTP LOAD,$ohms")
+    }
+
+    @Throws(IOException::class)
+    fun setLoadMode(channel: Int, mode: String) {
+        validateChannel(channel)
+        val normalized = mode.trim().uppercase()
+        require(normalized == "50" || normalized == "HZ") {
+            "Unsupported load mode '$mode'. Use '50' or 'HZ'."
+        }
+        send("C$channel:OUTP LOAD,$normalized")
+    }
+
+    @Throws(IOException::class)
     fun setBasicWave(
         channel: Int,
         frequencyHz: Double,

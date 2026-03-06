@@ -91,10 +91,27 @@ class Sdg7000aTelnetClient(
             val fallbackState = runCatching { queryOutputState(channel) }.getOrNull()
             if (fallbackState?.contains("ON", ignoreCase = true) == true) return
 
-            send("C$channel:OUTP ON,LOAD,50")
+            send("C$channel:OUTP ON")
         } else {
             send("C$channel:OUTP OFF")
         }
+    }
+
+    @Throws(IOException::class)
+    fun setLoadImpedance(channel: Int, ohms: Int = 50) {
+        validateChannel(channel)
+        require(ohms > 0) { "Load impedance must be positive." }
+        send("C$channel:OUTP LOAD,$ohms")
+    }
+
+    @Throws(IOException::class)
+    fun setLoadMode(channel: Int, mode: String) {
+        validateChannel(channel)
+        val normalized = mode.trim().uppercase()
+        require(normalized == "50" || normalized == "HZ") {
+            "Unsupported load mode '$mode'. Use '50' or 'HZ'."
+        }
+        send("C$channel:OUTP LOAD,$normalized")
     }
 
     @Throws(IOException::class)
