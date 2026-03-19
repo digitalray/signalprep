@@ -31,6 +31,11 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/device_2_tab" />
+
+            <com.google.android.material.tabs.TabItem
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/progen_1_tab" />
         </com.google.android.material.tabs.TabLayout>
 
         <LinearLayout
@@ -776,12 +781,77 @@
             android:layout_marginTop="8dp"
             android:text="@string/fg_port" />
 
-        <EditText
-            android:id="@+id/functionGeneratorPortInput"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:inputType="number"
-            android:text="5025" />
+            <EditText
+                android:id="@+id/functionGeneratorPortInput"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="number"
+                android:text="5025" />
+
+            <LinearLayout
+                android:id="@+id/progen1SettingsContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <CheckBox
+                    android:id="@+id/progen1EnabledCheckbox"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:checked="false"
+                    android:text="@string/progen1_enabled" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="@string/progen1_carrier_frequency" />
+
+                <EditText
+                    android:id="@+id/progen1CarrierFrequencyInput"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="numberDecimal"
+                    android:text="27120000" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="@string/progen1_used_frequency" />
+
+                <Spinner
+                    android:id="@+id/progen1UsedFrequencySpinner"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:entries="@array/used_frequency_options" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="@string/progen1_wave_type" />
+
+                <Spinner
+                    android:id="@+id/progen1WaveTypeSpinner"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:entries="@array/wave_types" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="@string/progen1_duty_cycle" />
+
+                <EditText
+                    android:id="@+id/progen1DutyCycleInput"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="numberDecimal"
+                    android:text="50" />
+            </LinearLayout>
 
         </LinearLayout>
 
@@ -830,6 +900,27 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="@string/ch2_calculated"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/d2ch1_calculated"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/d2ch2_calculated"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/pg1_calculated"
                 android:textStyle="bold" />
 
             <TextView
