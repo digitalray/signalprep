@@ -1,6 +1,15 @@
 package com.example.signalprep
 
+import android.app.PendingIntent
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.hardware.usb.UsbConstants
+import android.hardware.usb.UsbDevice
+import android.hardware.usb.UsbManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
@@ -21,11 +30,19 @@ import com.google.android.material.tabs.TabLayout
 import java.io.BufferedReader
 import java.io.ByteArrayInputStream
 import java.io.InputStreamReader
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.nio.charset.Charset
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
 class MainActivity : AppCompatActivity() {
+    companion object {
+        private const val ACTION_USB_PERMISSION = "com.example.signalprep.USB_PERMISSION"
+        private const val PROGEN_VENDOR_ID = 0x0461
+        private const val PROGEN_PRODUCT_ID = 0x0020
+    }
+
     private data class FrequencyStep(
         val durationSeconds: Long,
         val device1Ch1SelectedFreq: Double?,
@@ -35,7 +52,9 @@ class MainActivity : AppCompatActivity() {
         val device2Ch1SelectedFreq: Double?,
         val device2Ch2SelectedFreq: Double?,
         val device2Ch1FrequencyMode: String,
-        val device2Ch2FrequencyMode: String
+        val device2Ch2FrequencyMode: String,
+        val progen1SelectedFreq: Double?,
+        val progen1FrequencyMode: String
     )
     private data class DeviceClientContext(
         val connect: () -> Unit,
@@ -50,6 +69,10 @@ class MainActivity : AppCompatActivity() {
     )
     @Volatile
     private var stopRequested: Boolean = false
+    @Volatile
+    private var progenUsbVendorId: Int? = null
+    @Volatile
+    private var progenUsbProductId: Int? = null
 
     private lateinit var device1Ch1CarrierFrequencyInput: EditText
     private lateinit var device1Ch1UsedFrequencySpinner: Spinner
@@ -79,6 +102,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var device2Ch2AmplitudeInput: EditText
     private lateinit var device2Ch1LoadSpinner: Spinner
     private lateinit var device2Ch2LoadSpinner: Spinner
+    private lateinit var progen1CarrierFrequencyInput: EditText
+    private lateinit var progen1UsedFrequencySpinner: Spinner
+    private lateinit var progen1WaveTypeSpinner: Spinner
+    private lateinit var progen1DutyCycleInput: EditText
+    private lateinit var progen1EnabledCheckbox: CheckBox
     private lateinit var device1DeviceTypeSpinner: Spinner
     private lateinit var device2DeviceTypeSpinner: Spinner
     private lateinit var device1FunctionGeneratorIp: EditText
@@ -93,7 +121,31 @@ class MainActivity : AppCompatActivity() {
     private lateinit var deviceTabs: TabLayout
     private lateinit var device1SettingsContainer: LinearLayout
     private lateinit var device2SettingsContainer: LinearLayout
+    private lateinit var progen1SettingsContainer: LinearLayout
     private lateinit var rowsContainer: LinearLayout
+    private data class ProgenUsbSelection(
+        val device: UsbDevice,
+        val reason: String
+    )
+    private val usbPermissionReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action != ACTION_USB_PERMISSION) return
+            val granted = intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)
+            val device: UsbDevice? = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE)
+            val label = device?.deviceName ?: "USB device"
+            if (granted && device != null) {
+                progenUsbVendorId = device.vendorId
+                progenUsbProductId = device.productId
+            }
+            runOnUiThread {
+                Toast.makeText(
+                    this@MainActivity,
+                    if (granted) "USB permission granted for $label" else "USB permission denied for $label",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
     private val importCsvLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
             importFrequenciesFromCsv(uri)
@@ -103,6 +155,16 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        val usbPermissionFilter = IntentFilter(ACTION_USB_PERMISSION)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(
+                usbPermissionReceiver,
+                usbPermissionFilter,
+                Context.RECEIVER_NOT_EXPORTED
+            )
+        } else {
+            registerReceiver(usbPermissionReceiver, usbPermissionFilter)
+        }
 
         device1Ch1CarrierFrequencyInput = findViewById(R.id.carrierFrequencyInput)
         device1Ch1UsedFrequencySpinner = findViewById(R.id.usedFrequencySpinner)
@@ -132,6 +194,11 @@ class MainActivity : AppCompatActivity() {
         device2Ch2AmplitudeInput = findViewById(R.id.device2Ch2AmplitudeInput)
         device2Ch1LoadSpinner = findViewById(R.id.device2Ch1LoadSpinner)
         device2Ch2LoadSpinner = findViewById(R.id.device2Ch2LoadSpinner)
+        progen1CarrierFrequencyInput = findViewById(R.id.progen1CarrierFrequencyInput)
+        progen1UsedFrequencySpinner = findViewById(R.id.progen1UsedFrequencySpinner)
+        progen1WaveTypeSpinner = findViewById(R.id.progen1WaveTypeSpinner)
+        progen1DutyCycleInput = findViewById(R.id.progen1DutyCycleInput)
+        progen1EnabledCheckbox = findViewById(R.id.progen1EnabledCheckbox)
         device1DeviceTypeSpinner = findViewById(R.id.deviceTypeSpinner)
         device2DeviceTypeSpinner = findViewById(R.id.device2DeviceTypeSpinner)
         device1FunctionGeneratorIp = findViewById(R.id.functionGeneratorIpInput)
@@ -146,6 +213,7 @@ class MainActivity : AppCompatActivity() {
         deviceTabs = findViewById(R.id.deviceTabs)
         device1SettingsContainer = findViewById(R.id.device1SettingsContainer)
         device2SettingsContainer = findViewById(R.id.device2SettingsContainer)
+        progen1SettingsContainer = findViewById(R.id.progen1SettingsContainer)
         rowsContainer = findViewById(R.id.rowsContainer)
 
         device1Ch1CarrierFrequencyInput.setText("3100000")
@@ -170,6 +238,11 @@ class MainActivity : AppCompatActivity() {
         device1FunctionGeneratorPort.setText("5025")
         device2FunctionGeneratorIp.setText("192.168.1.53")
         device2FunctionGeneratorPort.setText("5025")
+        progen1CarrierFrequencyInput.setText("27120000")
+        progen1DutyCycleInput.setText("50")
+        progen1UsedFrequencySpinner.setSelection(0)
+        progen1WaveTypeSpinner.setSelection(0)
+        progen1EnabledCheckbox.isChecked = false
         device1Ch1LoadSpinner.setSelection(0)
         device1Ch2LoadSpinner.setSelection(0)
         device2Ch1LoadSpinner.setSelection(0)
@@ -221,13 +294,12 @@ class MainActivity : AppCompatActivity() {
         }
         deviceTabs.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
             override fun onTabSelected(tab: TabLayout.Tab) {
-                val isDevice1 = tab.position == 0
-                applyDeviceTabVisibility(isDevice1)
+                applyTabVisibility(tab.position)
             }
             override fun onTabUnselected(tab: TabLayout.Tab) {}
             override fun onTabReselected(tab: TabLayout.Tab) {}
         })
-        applyDeviceTabVisibility(isDevice1 = true)
+        applyTabVisibility(tabPosition = 0)
         selectAllCheckbox.setOnCheckedChangeListener { _, isChecked ->
             for (i in 0 until rowsContainer.childCount) {
                 val row = rowsContainer.getChildAt(i)
@@ -249,6 +321,27 @@ class MainActivity : AppCompatActivity() {
                 refreshAllRows()
             }
         })
+        device2Ch1CarrierFrequencyInput.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                refreshAllRows()
+            }
+        })
+        device2Ch2CarrierFrequencyInput.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                refreshAllRows()
+            }
+        })
+        progen1CarrierFrequencyInput.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                refreshAllRows()
+            }
+        })
 
         addRow()
     }
@@ -258,15 +351,32 @@ class MainActivity : AppCompatActivity() {
         stopRequested = false
         val device1Enabled = device1EnabledCheckbox.isChecked
         val device2Enabled = device2EnabledCheckbox.isChecked
-        if (!device1Enabled && !device2Enabled) {
+        val progen1Enabled = progen1EnabledCheckbox.isChecked
+        if (!device1Enabled && !device2Enabled && !progen1Enabled) {
             Toast.makeText(this, "No device enabled.", Toast.LENGTH_SHORT).show()
             return
+        }
+        if (progen1Enabled) {
+            val hasPermission = try {
+                ensureProgenUsbPermission()
+            } catch (e: Exception) {
+                Log.e("SignalPrep", "Progen USB permission request failed", e)
+                Toast.makeText(this, "Progen USB error: ${e.message}", Toast.LENGTH_LONG).show()
+                return
+            }
+            if (!hasPermission) {
+                Toast.makeText(this, "Grant USB permission for Progen 1 and press Run again.", Toast.LENGTH_LONG).show()
+                return
+            }
         }
 
         val device1Ch1Mode = device1Ch1UsedFrequencySpinner.selectedItem?.toString() ?: "Actual"
         val device1Ch2Mode = device1Ch2UsedFrequencySpinner.selectedItem?.toString() ?: "Actual"
         val device2Ch1Mode = device2Ch1UsedFrequencySpinner.selectedItem?.toString() ?: "Actual"
         val device2Ch2Mode = device2Ch2UsedFrequencySpinner.selectedItem?.toString() ?: "Actual"
+        val progen1Mode = progen1UsedFrequencySpinner.selectedItem?.toString() ?: "Actual"
+        val progen1WaveType = progen1WaveTypeSpinner.selectedItem?.toString() ?: "SINE"
+        val progen1DutyCycle = progen1DutyCycleInput.text.toString().toDoubleOrNull() ?: 50.0
 
         val steps = mutableListOf<FrequencyStep>()
         for (i in 0 until rowsContainer.childCount) {
@@ -277,11 +387,17 @@ class MainActivity : AppCompatActivity() {
             val actualText = row.findViewById<EditText>(R.id.actualInput).text.toString().trim()
             val ch1CalculatedText = row.findViewById<TextView>(R.id.ch1CalculatedText).text.toString().trim()
             val ch2CalculatedText = row.findViewById<TextView>(R.id.ch2CalculatedText).text.toString().trim()
+            val d2Ch1CalculatedText = row.findViewById<TextView>(R.id.d2Ch1CalculatedText).text.toString().trim()
+            val d2Ch2CalculatedText = row.findViewById<TextView>(R.id.d2Ch2CalculatedText).text.toString().trim()
+            val pg1CalculatedText = row.findViewById<TextView>(R.id.pg1CalculatedText).text.toString().trim()
             val durationText = row.findViewById<EditText>(R.id.durationInput).text.toString().trim()
 
             val actualValue = actualText.toDoubleOrNull()
             val ch1CalculatedValue = ch1CalculatedText.toDoubleOrNull()
             val ch2CalculatedValue = ch2CalculatedText.toDoubleOrNull()
+            val d2Ch1CalculatedValue = d2Ch1CalculatedText.toDoubleOrNull()
+            val d2Ch2CalculatedValue = d2Ch2CalculatedText.toDoubleOrNull()
+            val pg1CalculatedValue = pg1CalculatedText.toDoubleOrNull()
 
             val device1Ch1Freq = if (device1Enabled) {
                 if (device1Ch1Mode.equals("Actual", true)) actualValue else ch1CalculatedValue
@@ -290,14 +406,18 @@ class MainActivity : AppCompatActivity() {
                 if (device1Ch2Mode.equals("Actual", true)) actualValue else ch2CalculatedValue
             } else null
             val device2Ch1Freq = if (device2Enabled) {
-                if (device2Ch1Mode.equals("Actual", true)) actualValue else ch1CalculatedValue
+                if (device2Ch1Mode.equals("Actual", true)) actualValue else d2Ch1CalculatedValue
             } else null
             val device2Ch2Freq = if (device2Enabled) {
-                if (device2Ch2Mode.equals("Actual", true)) actualValue else ch2CalculatedValue
+                if (device2Ch2Mode.equals("Actual", true)) actualValue else d2Ch2CalculatedValue
+            } else null
+            val progen1Freq = if (progen1Enabled) {
+                if (progen1Mode.equals("Actual", true)) actualValue else pg1CalculatedValue
             } else null
 
             if (device1Enabled && (device1Ch1Freq == null || device1Ch2Freq == null)) continue
             if (device2Enabled && (device2Ch1Freq == null || device2Ch2Freq == null)) continue
+            if (progen1Enabled && progen1Freq == null) continue
 
             val durationSeconds = parseDurationSeconds(durationText) ?: continue
             if (durationSeconds <= 0) continue
@@ -312,7 +432,9 @@ class MainActivity : AppCompatActivity() {
                     device2Ch1SelectedFreq = device2Ch1Freq,
                     device2Ch2SelectedFreq = device2Ch2Freq,
                     device2Ch1FrequencyMode = device2Ch1Mode,
-                    device2Ch2FrequencyMode = device2Ch2Mode
+                    device2Ch2FrequencyMode = device2Ch2Mode,
+                    progen1SelectedFreq = progen1Freq,
+                    progen1FrequencyMode = progen1Mode
                 )
             )
         }
@@ -338,6 +460,7 @@ class MainActivity : AppCompatActivity() {
         Thread {
             var device1Client: DeviceClientContext? = null
             var device2Client: DeviceClientContext? = null
+            var progen1Client: Progen3UsbClient? = null
             try {
                 if (device1Enabled) {
                     device1Client = createDeviceClient(
@@ -381,6 +504,18 @@ class MainActivity : AppCompatActivity() {
                     device2Client.setDutyCycle(2, device2Ch2DutyCycleInput.text.toString().toDoubleOrNull() ?: 50.0)
                 }
 
+                if (progen1Enabled) {
+                    val transport = Progen3AndroidUsbTransport(
+                        context = this@MainActivity,
+                        vendorId = progenUsbVendorId,
+                        productId = progenUsbProductId
+                    )
+                    progen1Client = Progen3UsbClient(transport)
+                    progen1Client.connect()
+                    progen1Client.setTx(true)
+                    progen1Client.setGeneratorOutput(true)
+                }
+
                 for (step in steps) {
                     if (stopRequested) break
                     if (device1Enabled) {
@@ -395,6 +530,15 @@ class MainActivity : AppCompatActivity() {
                         device2Client?.setFrequency(1, step.device2Ch1SelectedFreq ?: continue)
                         device2Client?.setFrequency(2, step.device2Ch2SelectedFreq ?: continue)
                     }
+                    if (progen1Enabled) {
+                        val freqHz = step.progen1SelectedFreq ?: continue
+                        val controlWord = createProgen1ControlWord(
+                            frequencyHz = freqHz,
+                            waveType = progen1WaveType,
+                            dutyCyclePercent = progen1DutyCycle
+                        )
+                        progen1Client?.setGenerator(controlWord)
+                    }
 
                     val device1Status = if (device1Enabled) {
                         "Device 1 CH1 ${String.format("%.2f", step.device1Ch1SelectedFreq)} Hz (${step.device1Ch1FrequencyMode}), " +
@@ -404,11 +548,16 @@ class MainActivity : AppCompatActivity() {
                         "Device 2 CH1 ${String.format("%.2f", step.device2Ch1SelectedFreq)} Hz (${step.device2Ch1FrequencyMode}), " +
                             "CH2 ${String.format("%.2f", step.device2Ch2SelectedFreq)} Hz (${step.device2Ch2FrequencyMode})"
                     } else null
+                    val progen1Status = if (progen1Enabled) {
+                        "Progen 1 ${String.format("%.2f", step.progen1SelectedFreq)} Hz (${step.progen1FrequencyMode}), " +
+                            "Wave $progen1WaveType, Duty ${String.format("%.2f", progen1DutyCycle)}%"
+                    } else null
 
                     val shouldContinue = runCountdownPopup(
                         durationSeconds = step.durationSeconds,
                         device1Status = device1Status,
-                        device2Status = device2Status
+                        device2Status = device2Status,
+                        progen1Status = progen1Status
                     )
                     if (!shouldContinue) break
                 }
@@ -424,7 +573,7 @@ class MainActivity : AppCompatActivity() {
                 Log.e("SignalPrep", "Run failed", e)
                 runOnUiThread {
                     val reason = "${e::class.java.simpleName}: ${e.message}"
-                    Toast.makeText(this, "Run failed: $reason", Toast.LENGTH_LONG).show()
+                    showRunErrorDialog("Run failed: $reason")
                 }
             } finally {
                 runCatching { device1Client?.setOutput(1, false) }
@@ -433,20 +582,40 @@ class MainActivity : AppCompatActivity() {
                 runCatching { device2Client?.setOutput(2, false) }
                 runCatching { device1Client?.closeClient() }
                 runCatching { device2Client?.closeClient() }
+                runCatching { progen1Client?.setGeneratorOutput(false) }
+                runCatching { progen1Client?.setTx(false) }
+                runCatching { progen1Client?.releaseGenerator() }
+                runCatching { progen1Client?.close() }
             }
         }.start()
+    }
+
+    private fun showRunErrorDialog(message: String) {
+        val errorView = TextView(this).apply {
+            text = message
+            setPadding(36, 24, 36, 24)
+            setTextIsSelectable(true)
+            isVerticalScrollBarEnabled = true
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Run Failed")
+            .setView(errorView)
+            .setPositiveButton("OK", null)
+            .show()
     }
 
     private fun runCountdownPopup(
         durationSeconds: Long,
         device1Status: String?,
-        device2Status: String?
+        device2Status: String?,
+        progen1Status: String?
     ): Boolean {
         var countdownDialog: AlertDialog? = null
         runOnUiThread {
             val statusText = buildString {
                 if (!device1Status.isNullOrBlank()) appendLine(device1Status)
                 if (!device2Status.isNullOrBlank()) appendLine(device2Status)
+                if (!progen1Status.isNullOrBlank()) appendLine(progen1Status)
             }.trim()
             countdownDialog = AlertDialog.Builder(this)
                 .setTitle("Run Status")
@@ -470,6 +639,7 @@ class MainActivity : AppCompatActivity() {
                 val statusText = buildString {
                     if (!device1Status.isNullOrBlank()) appendLine(device1Status)
                     if (!device2Status.isNullOrBlank()) appendLine(device2Status)
+                    if (!progen1Status.isNullOrBlank()) appendLine(progen1Status)
                 }.trim()
                 countdownDialog?.setMessage("$statusText\n\nRemaining: $remaining s")
             }
@@ -484,6 +654,36 @@ class MainActivity : AppCompatActivity() {
         return true
     }
 
+    private fun createProgen1ControlWord(
+        frequencyHz: Double,
+        waveType: String,
+        dutyCyclePercent: Double
+    ): ByteArray {
+        // Protocol note:
+        // ProGen III control-word byte mapping is partially undocumented in the available docs.
+        // This packet packs frequency/wave/duty into 16 bytes in a stable format for device-side parsing.
+        val packet = ByteArray(Progen3UsbClient.MESSAGE_SIZE)
+        val buffer = ByteBuffer.wrap(packet).order(ByteOrder.LITTLE_ENDIAN)
+        val freqInt = frequencyHz.roundToInt().coerceAtLeast(1)
+        val dutyScaled = (dutyCyclePercent.coerceIn(0.0, 100.0) * 100.0).roundToInt()
+
+        buffer.putInt(0, freqInt)
+        packet[4] = progenWaveTypeCode(waveType)
+        buffer.putShort(5, dutyScaled.toShort())
+        packet[7] = 1 // enable flag
+        return packet
+    }
+
+    private fun progenWaveTypeCode(waveType: String): Byte {
+        return when (waveType.trim().uppercase()) {
+            "SINE" -> 0
+            "SQUARE" -> 1
+            "TRIANGLE", "RAMP" -> 2
+            "PULSE" -> 3
+            else -> 0
+        }.toByte()
+    }
+
     private fun addRow(
         actualValue: String = "",
         durationValue: String = "",
@@ -494,6 +694,9 @@ class MainActivity : AppCompatActivity() {
         val actualInput = rowView.findViewById<EditText>(R.id.actualInput)
         val ch1CalculatedText = rowView.findViewById<TextView>(R.id.ch1CalculatedText)
         val ch2CalculatedText = rowView.findViewById<TextView>(R.id.ch2CalculatedText)
+        val d2Ch1CalculatedText = rowView.findViewById<TextView>(R.id.d2Ch1CalculatedText)
+        val d2Ch2CalculatedText = rowView.findViewById<TextView>(R.id.d2Ch2CalculatedText)
+        val pg1CalculatedText = rowView.findViewById<TextView>(R.id.pg1CalculatedText)
         val durationInput = rowView.findViewById<EditText>(R.id.durationInput)
         val enabledCheck = rowView.findViewById<CheckBox>(R.id.enabledCheck)
         val deleteRowButton = rowView.findViewById<Button>(R.id.deleteRowButton)
@@ -504,6 +707,9 @@ class MainActivity : AppCompatActivity() {
             override fun afterTextChanged(s: Editable?) {
                 ch1CalculatedText.text = calculateFrequency(actualInput.text.toString(), device1Ch1CarrierFrequencyInput)
                 ch2CalculatedText.text = calculateFrequency(actualInput.text.toString(), device1Ch2CarrierFrequencyInput)
+                d2Ch1CalculatedText.text = calculateFrequency(actualInput.text.toString(), device2Ch1CarrierFrequencyInput)
+                d2Ch2CalculatedText.text = calculateFrequency(actualInput.text.toString(), device2Ch2CarrierFrequencyInput)
+                pg1CalculatedText.text = calculateFrequency(actualInput.text.toString(), progen1CarrierFrequencyInput)
             }
         })
 
@@ -512,6 +718,9 @@ class MainActivity : AppCompatActivity() {
         enabledCheck.isChecked = enabledValue || selectAllCheckbox.isChecked
         ch1CalculatedText.text = calculateFrequency(actualValue, device1Ch1CarrierFrequencyInput)
         ch2CalculatedText.text = calculateFrequency(actualValue, device1Ch2CarrierFrequencyInput)
+        d2Ch1CalculatedText.text = calculateFrequency(actualValue, device2Ch1CarrierFrequencyInput)
+        d2Ch2CalculatedText.text = calculateFrequency(actualValue, device2Ch2CarrierFrequencyInput)
+        pg1CalculatedText.text = calculateFrequency(actualValue, progen1CarrierFrequencyInput)
         deleteRowButton.setOnClickListener {
             rowsContainer.removeView(rowView)
         }
@@ -598,8 +807,14 @@ class MainActivity : AppCompatActivity() {
             val actualInput = row.findViewById<EditText>(R.id.actualInput)
             val ch1CalculatedText = row.findViewById<TextView>(R.id.ch1CalculatedText)
             val ch2CalculatedText = row.findViewById<TextView>(R.id.ch2CalculatedText)
+            val d2Ch1CalculatedText = row.findViewById<TextView>(R.id.d2Ch1CalculatedText)
+            val d2Ch2CalculatedText = row.findViewById<TextView>(R.id.d2Ch2CalculatedText)
+            val pg1CalculatedText = row.findViewById<TextView>(R.id.pg1CalculatedText)
             ch1CalculatedText.text = calculateFrequency(actualInput.text.toString(), device1Ch1CarrierFrequencyInput)
             ch2CalculatedText.text = calculateFrequency(actualInput.text.toString(), device1Ch2CarrierFrequencyInput)
+            d2Ch1CalculatedText.text = calculateFrequency(actualInput.text.toString(), device2Ch1CarrierFrequencyInput)
+            d2Ch2CalculatedText.text = calculateFrequency(actualInput.text.toString(), device2Ch2CarrierFrequencyInput)
+            pg1CalculatedText.text = calculateFrequency(actualInput.text.toString(), progen1CarrierFrequencyInput)
         }
     }
 
@@ -675,18 +890,28 @@ class MainActivity : AppCompatActivity() {
         Toast.makeText(this, "Applied $secondsPerRow seconds to ${enabledRows.size} enabled rows.", Toast.LENGTH_SHORT).show()
     }
 
-    private fun applyDeviceTabVisibility(isDevice1: Boolean) {
-        // device2SettingsContainer is currently nested in device1SettingsContainer.
-        // Toggle sibling visibility so only the chosen device settings are visible.
+    private fun applyTabVisibility(tabPosition: Int) {
+        // device2/progen1 containers are nested in device1SettingsContainer.
+        // Toggle sibling visibility so only the chosen tab settings are visible.
         for (i in 0 until device1SettingsContainer.childCount) {
             val child = device1SettingsContainer.getChildAt(i)
-            if (child.id == R.id.device2SettingsContainer) {
-                child.visibility = if (isDevice1) android.view.View.GONE else android.view.View.VISIBLE
-            } else {
-                child.visibility = if (isDevice1) android.view.View.VISIBLE else android.view.View.GONE
+            child.visibility = when (tabPosition) {
+                0 -> if (child.id == R.id.device2SettingsContainer || child.id == R.id.progen1SettingsContainer) {
+                    android.view.View.GONE
+                } else {
+                    android.view.View.VISIBLE
+                }
+                1 -> if (child.id == R.id.device2SettingsContainer) android.view.View.VISIBLE else android.view.View.GONE
+                2 -> if (child.id == R.id.progen1SettingsContainer) android.view.View.VISIBLE else android.view.View.GONE
+                else -> android.view.View.GONE
             }
         }
-        appSettingsTitle.text = if (isDevice1) "Device 1 Settings" else "Device 2 Settings"
+        appSettingsTitle.text = when (tabPosition) {
+            0 -> "Device 1 Settings"
+            1 -> "Device 2 Settings"
+            2 -> "Progen 1 Settings"
+            else -> "Settings"
+        }
     }
 
     private fun createDeviceClient(
@@ -735,5 +960,111 @@ class MainActivity : AppCompatActivity() {
 
     private fun toLoadCommandValue(selection: String?): String {
         return if (selection.equals("50ohm", ignoreCase = true)) "50" else "HZ"
+    }
+
+    private fun ensureProgenUsbPermission(): Boolean {
+        val manager = getSystemService(Context.USB_SERVICE) as UsbManager
+        val selection = selectProgenUsbDevice(manager)
+            ?: throw IllegalStateException(
+                "No compatible Progen USB device detected. Detected: ${buildUsbDeviceDiagnostics(manager)}"
+            )
+        val device = selection.device
+        progenUsbVendorId = device.vendorId
+        progenUsbProductId = device.productId
+        if (manager.hasPermission(device)) return true
+
+        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+        } else {
+            PendingIntent.FLAG_UPDATE_CURRENT
+        }
+        val permissionIntent = PendingIntent.getBroadcast(
+            this,
+            0,
+            Intent(ACTION_USB_PERMISSION).setPackage(packageName),
+            flags
+        )
+        manager.requestPermission(device, permissionIntent)
+        Toast.makeText(this, "Requesting USB permission: ${selection.reason}", Toast.LENGTH_SHORT).show()
+        return false
+    }
+
+    private fun selectProgenUsbDevice(manager: UsbManager): ProgenUsbSelection? {
+        val compatible = manager.deviceList.values.filter { hasCompatibleInterface(it) }
+        if (compatible.isEmpty()) return null
+
+        val exact = compatible.filter {
+            it.vendorId == PROGEN_VENDOR_ID && it.productId == PROGEN_PRODUCT_ID
+        }
+        if (exact.size == 1) {
+            val d = exact.first()
+            return ProgenUsbSelection(
+                device = d,
+                reason = "Progen VID/PID match (0x${d.vendorId.toString(16)}:0x${d.productId.toString(16)})"
+            )
+        }
+        if (exact.size > 1) {
+            val d = exact.first()
+            return ProgenUsbSelection(
+                device = d,
+                reason = "Multiple Progen VID/PID matches; using first (${d.deviceName})"
+            )
+        }
+
+        if (compatible.size == 1) {
+            val d = compatible.first()
+            return ProgenUsbSelection(
+                device = d,
+                reason = "Single compatible USB device (${d.deviceName})"
+            )
+        }
+        return null
+    }
+
+    private fun hasCompatibleInterface(device: UsbDevice): Boolean {
+        for (i in 0 until device.interfaceCount) {
+            val iface = device.getInterface(i)
+            var hasIn = false
+            var hasOut = false
+            for (j in 0 until iface.endpointCount) {
+                val endpoint = iface.getEndpoint(j)
+                val supportedType =
+                    endpoint.type == UsbConstants.USB_ENDPOINT_XFER_BULK ||
+                        endpoint.type == UsbConstants.USB_ENDPOINT_XFER_INT
+                if (!supportedType) continue
+                if (endpoint.direction == UsbConstants.USB_DIR_IN) hasIn = true
+                if (endpoint.direction == UsbConstants.USB_DIR_OUT) hasOut = true
+            }
+            if (hasIn && hasOut) return true
+        }
+        return false
+    }
+
+    private fun buildUsbDeviceDiagnostics(manager: UsbManager): String {
+        if (manager.deviceList.isEmpty()) return "no USB devices visible"
+        return manager.deviceList.values.joinToString(" | ") { device ->
+            val ifaceSummary = (0 until device.interfaceCount).joinToString(",") { idx ->
+                val iface = device.getInterface(idx)
+                val eps = (0 until iface.endpointCount).joinToString("/") { epIdx ->
+                    val endpoint = iface.getEndpoint(epIdx)
+                    val dir = if (endpoint.direction == UsbConstants.USB_DIR_IN) "IN" else "OUT"
+                    val type = when (endpoint.type) {
+                        UsbConstants.USB_ENDPOINT_XFER_BULK -> "BULK"
+                        UsbConstants.USB_ENDPOINT_XFER_INT -> "INT"
+                        UsbConstants.USB_ENDPOINT_XFER_CONTROL -> "CTRL"
+                        UsbConstants.USB_ENDPOINT_XFER_ISOC -> "ISOC"
+                        else -> "UNK"
+                    }
+                    "$dir-$type"
+                }
+                "if$idx[$eps]"
+            }
+            "vid=0x${device.vendorId.toString(16)},pid=0x${device.productId.toString(16)},$ifaceSummary"
+        }
+    }
+
+    override fun onDestroy() {
+        runCatching { unregisterReceiver(usbPermissionReceiver) }
+        super.onDestroy()
     }
 }

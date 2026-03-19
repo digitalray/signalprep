@@ -31,6 +31,33 @@
         android:paddingStart="8dp"
         android:paddingEnd="8dp" />
 
+    <TextView
+        android:id="@+id/d2Ch1CalculatedText"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_vertical"
+        android:layout_weight="1"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp" />
+
+    <TextView
+        android:id="@+id/d2Ch2CalculatedText"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_vertical"
+        android:layout_weight="1"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp" />
+
+    <TextView
+        android:id="@+id/pg1CalculatedText"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_vertical"
+        android:layout_weight="1"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp" />
+
     <EditText
         android:id="@+id/durationInput"
         android:layout_width="0dp"
