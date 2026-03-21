@@ -611,9 +611,15 @@ class MainActivity : AppCompatActivity() {
                     }
                     runCatching { progen1Client?.setTx(false) }
                 } else {
-                    runCatching { progen1Client?.setGeneratorOutput(false) }
+                    runCatching {
+                        val stopControlWord = createProgen1StopControlWord(
+                            waveType = progen1WaveType,
+                            dutyCyclePercent = progen1DutyCycle,
+                            outputMode = progen1OutputMode
+                        )
+                        progen1Client?.setGenerator(stopControlWord)
+                    }
                     runCatching { progen1Client?.setTx(false) }
-                    runCatching { progen1Client?.releaseGenerator() }
                 }
                 runCatching { progen1Client?.close() }
             }
