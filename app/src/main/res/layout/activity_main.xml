@@ -48,7 +48,7 @@
             android:id="@+id/device1EnabledCheckbox"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:checked="true"
+            android:checked="false"
             android:text="@string/device1_enabled" />
 
         <LinearLayout
@@ -799,7 +799,7 @@
                     android:id="@+id/progen1EnabledCheckbox"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:checked="false"
+                    android:checked="true"
                     android:text="@string/progen1_enabled" />
 
                 <TextView
@@ -851,6 +851,47 @@
                     android:layout_height="wrap_content"
                     android:inputType="numberDecimal"
                     android:text="50" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:orientation="horizontal">
+
+                    <CheckBox
+                        android:id="@+id/progen1PulsingCheckbox"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:checked="true"
+                        android:text="@string/progen1_pulsing" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center_vertical"
+                        android:layout_marginStart="12dp"
+                        android:text="@string/progen1_pulse_rate" />
+
+                    <EditText
+                        android:id="@+id/progen1PulseRateInput"
+                        android:layout_width="80dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:inputType="numberDecimal"
+                        android:text="1" />
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="@string/progen1_output" />
+
+                <Spinner
+                    android:id="@+id/progen1OutputSpinner"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:entries="@array/progen1_output_options" />
             </LinearLayout>
 
         </LinearLayout>
@@ -866,7 +907,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:inputType="numberDecimal"
-            android:text="" />
+            android:text="4" />
 
         <Button
             android:id="@+id/applyDurationButton"
@@ -939,7 +980,8 @@
                 <CheckBox
                     android:id="@+id/selectAllCheckbox"
                     android:layout_width="wrap_content"
-                    android:layout_height="wrap_content" />
+                    android:layout_height="wrap_content"
+                    android:checked="true" />
 
                 <TextView
                     android:layout_width="wrap_content"

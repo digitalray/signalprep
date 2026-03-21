@@ -44,6 +44,9 @@
     <string name="progen1_used_frequency">Progen 1 Used Frequency</string>
     <string name="progen1_wave_type">Progen 1 Wave Type</string>
     <string name="progen1_duty_cycle">Progen 1 Duty Cycle</string>
+    <string name="progen1_pulsing">Progen 1 Pulsing</string>
+    <string name="progen1_pulse_rate">Progen 1 Pulse Rate</string>
+    <string name="progen1_output">Output</string>
     <string name="progen1_enabled">Progen 1 Enabled</string>
     <string name="total_duration_minutes">Total Duration (minutes)</string>
     <string name="apply_duration">Apply Duration</string>
@@ -65,6 +68,7 @@
 
     <string-array name="wave_types">
         <item>SINE</item>
+        <item>SQUARE</item>
     </string-array>
 
     <string-array name="used_frequency_options">
@@ -80,5 +84,11 @@
     <string-array name="device_type_options">
         <item>SDG1000X</item>
         <item>SDG7000A</item>
+    </string-array>
+
+    <string-array name="progen1_output_options">
+        <item>Positive</item>
+        <item>Negative</item>
+        <item>Centre</item>
     </string-array>
 </resources>

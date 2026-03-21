@@ -34,6 +34,8 @@ class Progen3UsbClient(
 
         @Throws(IOException::class)
         fun close()
+
+        fun debugInfo(): String = "transport=n/a"
     }
 
     enum class Command(val code: Byte) {
@@ -74,6 +76,7 @@ class Progen3UsbClient(
     @Throws(IOException::class)
     fun connect() {
         transport.connect()
+        Log.d(TAG, "connected ${transport.debugInfo()}")
     }
 
     @Throws(IOException::class)
@@ -115,31 +118,47 @@ class Progen3UsbClient(
      */
     @Throws(IOException::class)
     fun setGenerator(controlWord: ByteArray): Reply {
-        val first = sendCommand(Command.SET_GENERATOR, expectAck = true)
-        if (first.command != Command.CTS) {
-            throw IOException("Expected CTS after SET_GENERATOR, got ${first.command ?: "null"}")
-        }
+        var lastError: IOException? = null
+        for (attempt in 1..2) {
+            try {
+                Log.d(TAG, "step=setGeneratorHandshake attempt=$attempt ${transport.debugInfo()}")
+                val first = sendCommand(Command.SET_GENERATOR, expectAck = true)
+                if (first.command != Command.CTS) {
+                    throw IOException("Expected CTS after SET_GENERATOR, got ${first.command ?: "null"}")
+                }
 
-        val second = sendPayload(controlWord, expectAck = true)
-        if (second.command != Command.ACK) {
-            throw IOException("Expected ACK after control word payload, got ${second.command ?: "null"}")
+                Log.d(TAG, "step=setGeneratorPayload attempt=$attempt ${transport.debugInfo()}")
+                val second = sendPayload(controlWord, expectAck = true)
+                if (second.command != Command.ACK) {
+                    throw IOException("Expected ACK after control word payload, got ${second.command ?: "null"}")
+                }
+                return second
+            } catch (e: IOException) {
+                lastError = e
+                Log.w(TAG, "step=setGenerator failed attempt=$attempt error=${e.message}")
+                if (attempt == 1) {
+                    reconnectTransport("setGenerator recovery")
+                }
+            }
         }
-        return second
+        throw lastError ?: IOException("setGenerator failed with unknown error")
     }
 
     @Throws(IOException::class)
     fun setGeneratorOutput(enabled: Boolean): Reply {
-        return sendCommand(if (enabled) Command.SET_GENERATOR_ON else Command.SET_GENERATOR_OFF)
+        val command = if (enabled) Command.SET_GENERATOR_ON else Command.SET_GENERATOR_OFF
+        return sendCommandWithRecovery(command, "setGeneratorOutput")
     }
 
     @Throws(IOException::class)
     fun setTx(enabled: Boolean): Reply {
-        return sendCommand(if (enabled) Command.SET_TX_ON else Command.SET_TX_OFF)
+        val command = if (enabled) Command.SET_TX_ON else Command.SET_TX_OFF
+        return sendCommandWithRecovery(command, "setTx")
     }
 
     @Throws(IOException::class)
     fun releaseGenerator(): Reply {
-        return sendCommand(Command.RELEASE_GENERATOR)
+        return sendCommandWithRecovery(Command.RELEASE_GENERATOR, "releaseGenerator")
     }
 
     @Throws(IOException::class)
@@ -167,6 +186,32 @@ class Progen3UsbClient(
             command = command,
             raw = raw
         )
+    }
+
+    @Throws(IOException::class)
+    private fun sendCommandWithRecovery(command: Command, step: String): Reply {
+        var lastError: IOException? = null
+        for (attempt in 1..2) {
+            try {
+                Log.d(TAG, "step=$step command=${command.name} attempt=$attempt ${transport.debugInfo()}")
+                return sendCommand(command, expectAck = true)
+            } catch (e: IOException) {
+                lastError = e
+                Log.w(TAG, "step=$step command=${command.name} failed attempt=$attempt error=${e.message}")
+                if (attempt == 1) {
+                    reconnectTransport("$step recovery")
+                }
+            }
+        }
+        throw lastError ?: IOException("Command ${command.name} failed with unknown error")
+    }
+
+    @Throws(IOException::class)
+    private fun reconnectTransport(reason: String) {
+        Log.w(TAG, "reconnect start reason=$reason")
+        runCatching { transport.close() }
+        transport.connect()
+        Log.w(TAG, "reconnect complete ${transport.debugInfo()}")
     }
 
     private fun logTx(packet: ByteArray) {

@@ -15,6 +15,7 @@ import android.text.Editable
 import android.text.TextWatcher
 import android.util.Log
 import android.view.LayoutInflater
+import android.widget.ScrollView
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.CheckBox
@@ -29,9 +30,9 @@ import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.tabs.TabLayout
 import java.io.BufferedReader
 import java.io.ByteArrayInputStream
+import java.math.BigDecimal
+import java.math.RoundingMode
 import java.io.InputStreamReader
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
 import java.nio.charset.Charset
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -106,6 +107,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var progen1UsedFrequencySpinner: Spinner
     private lateinit var progen1WaveTypeSpinner: Spinner
     private lateinit var progen1DutyCycleInput: EditText
+    private lateinit var progen1PulsingCheckbox: CheckBox
+    private lateinit var progen1PulseRateInput: EditText
+    private lateinit var progen1OutputSpinner: Spinner
     private lateinit var progen1EnabledCheckbox: CheckBox
     private lateinit var device1DeviceTypeSpinner: Spinner
     private lateinit var device2DeviceTypeSpinner: Spinner
@@ -198,6 +202,9 @@ class MainActivity : AppCompatActivity() {
         progen1UsedFrequencySpinner = findViewById(R.id.progen1UsedFrequencySpinner)
         progen1WaveTypeSpinner = findViewById(R.id.progen1WaveTypeSpinner)
         progen1DutyCycleInput = findViewById(R.id.progen1DutyCycleInput)
+        progen1PulsingCheckbox = findViewById(R.id.progen1PulsingCheckbox)
+        progen1PulseRateInput = findViewById(R.id.progen1PulseRateInput)
+        progen1OutputSpinner = findViewById(R.id.progen1OutputSpinner)
         progen1EnabledCheckbox = findViewById(R.id.progen1EnabledCheckbox)
         device1DeviceTypeSpinner = findViewById(R.id.deviceTypeSpinner)
         device2DeviceTypeSpinner = findViewById(R.id.device2DeviceTypeSpinner)
@@ -240,9 +247,13 @@ class MainActivity : AppCompatActivity() {
         device2FunctionGeneratorPort.setText("5025")
         progen1CarrierFrequencyInput.setText("27120000")
         progen1DutyCycleInput.setText("50")
+        progen1PulsingCheckbox.isChecked = true
+        progen1PulseRateInput.setText("1")
+        progen1OutputSpinner.setSelection(0)
         progen1UsedFrequencySpinner.setSelection(0)
         progen1WaveTypeSpinner.setSelection(0)
-        progen1EnabledCheckbox.isChecked = false
+        device1EnabledCheckbox.isChecked = false
+        progen1EnabledCheckbox.isChecked = true
         device1Ch1LoadSpinner.setSelection(0)
         device1Ch2LoadSpinner.setSelection(0)
         device2Ch1LoadSpinner.setSelection(0)
@@ -377,6 +388,9 @@ class MainActivity : AppCompatActivity() {
         val progen1Mode = progen1UsedFrequencySpinner.selectedItem?.toString() ?: "Actual"
         val progen1WaveType = progen1WaveTypeSpinner.selectedItem?.toString() ?: "SINE"
         val progen1DutyCycle = progen1DutyCycleInput.text.toString().toDoubleOrNull() ?: 50.0
+        val progen1PulsingEnabled = progen1PulsingCheckbox.isChecked
+        val progen1PulseRate = progen1PulseRateInput.text.toString().toIntOrNull() ?: 1
+        val progen1OutputMode = progen1OutputSpinner.selectedItem?.toString() ?: "Positive"
 
         val steps = mutableListOf<FrequencyStep>()
         for (i in 0 until rowsContainer.childCount) {
@@ -535,7 +549,10 @@ class MainActivity : AppCompatActivity() {
                         val controlWord = createProgen1ControlWord(
                             frequencyHz = freqHz,
                             waveType = progen1WaveType,
-                            dutyCyclePercent = progen1DutyCycle
+                            dutyCyclePercent = progen1DutyCycle,
+                            pulsingEnabled = progen1PulsingEnabled,
+                            pulseRate = progen1PulseRate,
+                            outputMode = progen1OutputMode
                         )
                         progen1Client?.setGenerator(controlWord)
                     }
@@ -582,9 +599,22 @@ class MainActivity : AppCompatActivity() {
                 runCatching { device2Client?.setOutput(2, false) }
                 runCatching { device1Client?.closeClient() }
                 runCatching { device2Client?.closeClient() }
-                runCatching { progen1Client?.setGeneratorOutput(false) }
-                runCatching { progen1Client?.setTx(false) }
-                runCatching { progen1Client?.releaseGenerator() }
+                if (stopRequested) {
+                    // Attempt explicit frequency stop while keeping device/session active.
+                    runCatching {
+                        val stopControlWord = createProgen1StopControlWord(
+                            waveType = progen1WaveType,
+                            dutyCyclePercent = progen1DutyCycle,
+                            outputMode = progen1OutputMode
+                        )
+                        progen1Client?.setGenerator(stopControlWord)
+                    }
+                    runCatching { progen1Client?.setTx(false) }
+                } else {
+                    runCatching { progen1Client?.setGeneratorOutput(false) }
+                    runCatching { progen1Client?.setTx(false) }
+                    runCatching { progen1Client?.releaseGenerator() }
+                }
                 runCatching { progen1Client?.close() }
             }
         }.start()
@@ -595,11 +625,14 @@ class MainActivity : AppCompatActivity() {
             text = message
             setPadding(36, 24, 36, 24)
             setTextIsSelectable(true)
-            isVerticalScrollBarEnabled = true
+        }
+        val scrollContainer = ScrollView(this).apply {
+            isFillViewport = true
+            addView(errorView)
         }
         AlertDialog.Builder(this)
             .setTitle("Run Failed")
-            .setView(errorView)
+            .setView(scrollContainer)
             .setPositiveButton("OK", null)
             .show()
     }
@@ -657,31 +690,86 @@ class MainActivity : AppCompatActivity() {
     private fun createProgen1ControlWord(
         frequencyHz: Double,
         waveType: String,
-        dutyCyclePercent: Double
+        dutyCyclePercent: Double,
+        pulsingEnabled: Boolean,
+        pulseRate: Int,
+        outputMode: String
     ): ByteArray {
-        // Protocol note:
-        // ProGen III control-word byte mapping is partially undocumented in the available docs.
-        // This packet packs frequency/wave/duty into 16 bytes in a stable format for device-side parsing.
-        val packet = ByteArray(Progen3UsbClient.MESSAGE_SIZE)
-        val buffer = ByteBuffer.wrap(packet).order(ByteOrder.LITTLE_ENDIAN)
-        val freqInt = frequencyHz.roundToInt().coerceAtLeast(1)
-        val dutyScaled = (dutyCyclePercent.coerceIn(0.0, 100.0) * 100.0).roundToInt()
+        // Match the ProGen III controller packet layout from the original PG3 app.
+        val packet = ByteArray(Progen3UsbClient.MESSAGE_SIZE) { 0xFF.toByte() }
 
-        buffer.putInt(0, freqInt)
-        packet[4] = progenWaveTypeCode(waveType)
-        buffer.putShort(5, dutyScaled.toShort())
-        packet[7] = 1 // enable flag
+        val normalizedFreq = BigDecimal.valueOf(frequencyHz).stripTrailingZeros()
+        val decimalPlaces = normalizedFreq.scale().coerceAtLeast(0).coerceAtMost(9)
+        val scaledFreq = normalizedFreq
+            .movePointRight(decimalPlaces)
+            .setScale(0, RoundingMode.HALF_UP)
+            .toLong()
+            .coerceAtLeast(1L)
+            .coerceAtMost(0xFFFFFFL)
+
+        packet[0] = ((scaledFreq / 65536L) and 0xFF).toByte()
+        packet[1] = (((scaledFreq - ((packet[0].toInt() and 0xFF) * 65536L)) / 256L) and 0xFF).toByte()
+        packet[2] = (scaledFreq - ((packet[0].toInt() and 0xFF) * 65536L) - ((packet[1].toInt() and 0xFF) * 256L)).toByte()
+        packet[3] = decimalPlaces.toByte()
+
+        val normalizedWave = waveType.trim().uppercase()
+        packet[4] = when (normalizedWave) {
+            "SQUARE" -> 0x00
+            "SINE" -> 0x40
+            else -> 0x80.toByte()
+        }
+
+        // PG3 "square duty" encodes as one-byte percent in 5% steps from 5..95.
+        if (normalizedWave == "SQUARE") {
+            val clampedDuty = dutyCyclePercent.coerceIn(5.0, 95.0)
+            val dutyStep = (clampedDuty / 5.0).roundToInt().coerceIn(1, 19)
+            packet[5] = (dutyStep * 5).toByte()
+        }
+
+        if (pulsingEnabled) {
+            val clampedPulseRate = pulseRate.coerceIn(1, 4000)
+            packet[6] = ((clampedPulseRate / 65536) and 0xFF).toByte()
+            packet[7] = (((clampedPulseRate - ((packet[6].toInt() and 0xFF) * 65536)) / 256) and 0xFF).toByte()
+            packet[8] = (
+                clampedPulseRate -
+                    ((packet[6].toInt() and 0xFF) * 65536) -
+                    ((packet[7].toInt() and 0xFF) * 256)
+                ).toByte()
+        } else {
+            // Pulse OFF flag.
+            packet[4] = (packet[4].toInt() or 0x08).toByte()
+        }
+
+        // Output mode: Positive=bit4, Centre=bit5, Negative=no bit.
+        packet[4] = when (outputMode.trim().uppercase()) {
+            "CENTRE", "CENTER" -> (packet[4].toInt() or 0x20).toByte()
+            "NEGATIVE" -> packet[4]
+            else -> (packet[4].toInt() or 0x10).toByte()
+        }
+        Log.d("SignalPrep", "Progen controlWord=${packet.toHexString()}")
         return packet
     }
 
-    private fun progenWaveTypeCode(waveType: String): Byte {
-        return when (waveType.trim().uppercase()) {
-            "SINE" -> 0
-            "SQUARE" -> 1
-            "TRIANGLE", "RAMP" -> 2
-            "PULSE" -> 3
-            else -> 0
-        }.toByte()
+    private fun createProgen1StopControlWord(
+        waveType: String,
+        dutyCyclePercent: Double,
+        outputMode: String
+    ): ByteArray {
+        val packet = createProgen1ControlWord(
+            frequencyHz = 1.0,
+            waveType = waveType,
+            dutyCyclePercent = dutyCyclePercent,
+            pulsingEnabled = false,
+            pulseRate = 1,
+            outputMode = outputMode
+        )
+        // Explicit zero-frequency control word for stop path.
+        packet[0] = 0x00
+        packet[1] = 0x00
+        packet[2] = 0x00
+        packet[3] = 0x00
+        Log.d("SignalPrep", "Progen stopControlWord=${packet.toHexString()}")
+        return packet
     }
 
     private fun addRow(

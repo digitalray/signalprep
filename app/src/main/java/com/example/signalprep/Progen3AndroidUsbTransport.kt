@@ -20,6 +20,7 @@ class Progen3AndroidUsbTransport(
     private val timeoutMs: Int = 3_000
 ) : Progen3UsbClient.Transport {
 
+    private var connectedDevice: UsbDevice? = null
     private var connection: UsbDeviceConnection? = null
     private var usbInterface: UsbInterface? = null
     private var inEndpoint: UsbEndpoint? = null
@@ -57,6 +58,7 @@ class Progen3AndroidUsbTransport(
         }
 
         connection = conn
+        connectedDevice = device
         usbInterface = iface
         inEndpoint = inEp
         outEndpoint = outEp
@@ -154,9 +156,25 @@ class Progen3AndroidUsbTransport(
             }
         }
         connection = null
+        connectedDevice = null
         usbInterface = null
         inEndpoint = null
         outEndpoint = null
+    }
+
+    override fun debugInfo(): String {
+        val dev = connectedDevice
+        val iface = usbInterface
+        val inEp = inEndpoint
+        val outEp = outEndpoint
+        if (dev == null || iface == null || inEp == null || outEp == null) {
+            return "transport=disconnected vendorId=$vendorId productId=$productId"
+        }
+        val inType = endpointTypeName(inEp.type)
+        val outType = endpointTypeName(outEp.type)
+        return "transport=usb device=${dev.deviceName} vid=0x${dev.vendorId.toString(16)} pid=0x${dev.productId.toString(16)} " +
+            "iface=${iface.id}:${iface.interfaceClass}/${iface.interfaceSubclass}/${iface.interfaceProtocol} " +
+            "in=0x${inEp.address.toString(16)}-$inType out=0x${outEp.address.toString(16)}-$outType"
     }
 
     private fun findDevice(manager: UsbManager): UsbDevice? {
@@ -191,6 +209,16 @@ class Progen3AndroidUsbTransport(
             }
         }
         return null
+    }
+
+    private fun endpointTypeName(type: Int): String {
+        return when (type) {
+            UsbConstants.USB_ENDPOINT_XFER_BULK -> "BULK"
+            UsbConstants.USB_ENDPOINT_XFER_INT -> "INT"
+            UsbConstants.USB_ENDPOINT_XFER_CONTROL -> "CTRL"
+            UsbConstants.USB_ENDPOINT_XFER_ISOC -> "ISOC"
+            else -> "UNK"
+        }
     }
 
     private fun buildDeviceDiagnostics(manager: UsbManager): String {
