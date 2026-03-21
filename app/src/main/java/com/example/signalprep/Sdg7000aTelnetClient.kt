@@ -51,20 +51,45 @@ class Sdg7000aTelnetClient(
     @Synchronized
     @Throws(IOException::class)
     fun send(command: String) {
-        ensureConnected()
-        Log.d(logTag, "TX: ${command.trimEnd()}")
-        val bytes = (command.trimEnd() + "\n").toByteArray(StandardCharsets.US_ASCII)
-        output!!.write(bytes)
-        output!!.flush()
+        var lastError: IOException? = null
+        for (attempt in 1..2) {
+            try {
+                ensureConnected()
+                Log.d(logTag, "TX attempt=$attempt: ${command.trimEnd()}")
+                val bytes = (command.trimEnd() + "\n").toByteArray(StandardCharsets.US_ASCII)
+                output!!.write(bytes)
+                output!!.flush()
+                return
+            } catch (e: IOException) {
+                lastError = e
+                Log.w(logTag, "TX failed attempt=$attempt: ${e.message}")
+                if (attempt == 1) {
+                    reconnect()
+                }
+            }
+        }
+        throw lastError ?: IOException("Failed to send command")
     }
 
     @Synchronized
     @Throws(IOException::class)
     fun query(command: String): String {
-        send(command)
-        val response = readLine()
-        Log.d(logTag, "RX: $response")
-        return response
+        var lastError: IOException? = null
+        for (attempt in 1..2) {
+            try {
+                send(command)
+                val response = readLine()
+                Log.d(logTag, "RX attempt=$attempt: $response")
+                return response
+            } catch (e: IOException) {
+                lastError = e
+                Log.w(logTag, "Query failed attempt=$attempt: ${e.message}")
+                if (attempt == 1) {
+                    reconnect()
+                }
+            }
+        }
+        throw lastError ?: IOException("Failed to query command")
     }
 
     @Throws(IOException::class)
@@ -233,5 +258,12 @@ class Sdg7000aTelnetClient(
 
     private fun validateChannel(channel: Int) {
         require(channel == 1 || channel == 2) { "Channel must be 1 or 2 for SDG7000A." }
+    }
+
+    @Synchronized
+    @Throws(IOException::class)
+    private fun reconnect() {
+        runCatching { close() }
+        connect()
     }
 }
